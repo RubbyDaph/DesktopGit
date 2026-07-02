@@ -64,8 +64,10 @@ ApplicationWindow {
             Button {
                 id: refreshRepositoryButton
 
-                text: qsTr("Check Git")
-                onClicked: appController.CheckGitAvailable()
+                text: appController.repositoryPath.length > 0 ? qsTr("Refresh") : qsTr("Check Git")
+                onClicked: appController.repositoryPath.length > 0
+                    ? appController.RefreshRepository()
+                    : appController.CheckGitAvailable()
             }
         }
     }
@@ -103,19 +105,11 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     clip: true
 
-                    model: ListModel {
-                        id: changedFilesPlaceholderModel
-
-                        ListElement {
-                            name: "Repository status will appear here"
-                            state: "idle"
-                        }
-                    }
+                    model: appController.statusFileModel
 
                     delegate: ItemDelegate {
                         width: ListView.view.width
-                        text: model.name
-                        enabled: false
+                        text: model.displayStatus + "  " + model.path
                     }
                 }
             }

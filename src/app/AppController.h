@@ -2,6 +2,7 @@
 
 #include "GitCommandRunner.h"
 #include "GitRepository.h"
+#include "StatusFileModel.h"
 
 #include <QObject>
 #include <QString>
@@ -15,6 +16,7 @@ class AppController : public QObject
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString repositoryPath READ RepositoryPath NOTIFY RepositoryPathChanged)
     Q_PROPERTY(QString currentBranch READ CurrentBranch NOTIFY CurrentBranchChanged)
+    Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -24,10 +26,12 @@ public:
     [[nodiscard]] QString StatusMessage() const;
     [[nodiscard]] QString RepositoryPath() const;
     [[nodiscard]] QString CurrentBranch() const;
+    [[nodiscard]] class StatusFileModel *StatusFiles();
 
     Q_INVOKABLE void CheckGitAvailable();
     Q_INVOKABLE void OpenRepository(const QUrl &repositoryUrl);
     Q_INVOKABLE void OpenRepositoryPath(const QString &path);
+    Q_INVOKABLE void RefreshRepository();
 
 signals:
     void GitAvailableChanged();
@@ -45,6 +49,7 @@ private:
 
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
+    class StatusFileModel statusFileModel;
     bool gitAvailable = false;
     QString gitVersion;
     QString statusMessage;

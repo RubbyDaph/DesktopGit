@@ -1,7 +1,9 @@
 #pragma once
 
 #include "GitCommandRunner.h"
+#include "GitStatusFile.h"
 
+#include <QList>
 #include <QObject>
 #include <QString>
 
@@ -17,6 +19,7 @@ public:
 
     bool IsValid() const;
     QString CurrentBranch() const;
+    QList<GitStatusFile> Status() const;
 
 private:
     QString path;

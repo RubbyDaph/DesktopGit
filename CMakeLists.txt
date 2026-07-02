@@ -50,6 +50,7 @@ target_include_directories(desktop_git
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/app
         ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/models
 )
 
 target_link_libraries(desktop_git

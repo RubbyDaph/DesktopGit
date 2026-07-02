@@ -1,5 +1,7 @@
 #include "GitRepository.h"
 
+#include "GitStatusParser.h"
+
 GitRepository::GitRepository(QObject *parent)
     : QObject(parent)
 {
@@ -45,4 +47,22 @@ QString GitRepository::CurrentBranch() const
     }
 
     return result.standardOutput.trimmed();
+}
+
+QList<GitStatusFile> GitRepository::Status() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("status"),
+        QStringLiteral("--porcelain=v1")
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    return GitStatusParser::Parse(result.standardOutput);
 }

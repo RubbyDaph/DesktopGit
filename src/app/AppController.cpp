@@ -31,6 +31,11 @@ QString AppController::CurrentBranch() const
     return currentBranch;
 }
 
+StatusFileModel *AppController::StatusFiles()
+{
+    return &statusFileModel;
+}
+
 void AppController::CheckGitAvailable()
 {
     const GitCommandResult result = gitCommandRunner.Run({QStringLiteral("--version")});
@@ -69,6 +74,7 @@ void AppController::OpenRepositoryPath(const QString &path)
 
     SetRepositoryPath(path);
     SetCurrentBranch(gitRepository.CurrentBranch());
+    RefreshRepository();
 
     if (currentBranch.isEmpty()) {
         SetStatusMessage(QStringLiteral("Repository opened. Detached HEAD or no branch detected."));
@@ -76,6 +82,21 @@ void AppController::OpenRepositoryPath(const QString &path)
     }
 
     SetStatusMessage(QStringLiteral("Repository opened."));
+}
+
+void AppController::RefreshRepository()
+{
+    if (repositoryPath.isEmpty()) {
+        statusFileModel.Clear();
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    const QList<GitStatusFile> files = gitRepository.Status();
+    statusFileModel.SetFiles(files);
+
+    SetCurrentBranch(gitRepository.CurrentBranch());
+    SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
 }
 
 void AppController::SetGitAvailable(bool value)
