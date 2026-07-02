@@ -1,0 +1,10 @@
+build/
+cmake-build-*/
+
+CMakeUserPresets.json
+
+*.user
+*.autosave
+
+.DS_Store
+Thumbs.db
