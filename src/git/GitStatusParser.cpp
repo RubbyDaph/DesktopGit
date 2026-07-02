@@ -8,6 +8,10 @@ QList<GitStatusFile> GitStatusParser::Parse(const QString &output)
 
     const QStringList lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString &line : lines) {
+        if (line.startsWith(QLatin1Char('#'))) {
+            continue;
+        }
+
         if (line.size() < 4) {
             continue;
         }

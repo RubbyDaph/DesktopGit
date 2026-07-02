@@ -14,8 +14,9 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName(QStringLiteral("DesktopGit"));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
-    QQmlApplicationEngine engine;
     AppController appController;
+
+    QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &appController);
 
     QObject::connect(

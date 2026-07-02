@@ -16,6 +16,8 @@ class AppController : public QObject
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString repositoryPath READ RepositoryPath NOTIFY RepositoryPathChanged)
     Q_PROPERTY(QString currentBranch READ CurrentBranch NOTIFY CurrentBranchChanged)
+    Q_PROPERTY(QString selectedFilePath READ SelectedFilePath NOTIFY SelectedFilePathChanged)
+    Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
 public:
@@ -26,12 +28,15 @@ public:
     [[nodiscard]] QString StatusMessage() const;
     [[nodiscard]] QString RepositoryPath() const;
     [[nodiscard]] QString CurrentBranch() const;
+    [[nodiscard]] QString SelectedFilePath() const;
+    [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
 
     Q_INVOKABLE void CheckGitAvailable();
     Q_INVOKABLE void OpenRepository(const QUrl &repositoryUrl);
     Q_INVOKABLE void OpenRepositoryPath(const QString &path);
     Q_INVOKABLE void RefreshRepository();
+    Q_INVOKABLE void SelectStatusFile(const QString &path);
 
 signals:
     void GitAvailableChanged();
@@ -39,6 +44,8 @@ signals:
     void StatusMessageChanged();
     void RepositoryPathChanged();
     void CurrentBranchChanged();
+    void SelectedFilePathChanged();
+    void CurrentDiffChanged();
 
 private:
     void SetGitAvailable(bool value);
@@ -46,6 +53,8 @@ private:
     void SetStatusMessage(const QString &value);
     void SetRepositoryPath(const QString &value);
     void SetCurrentBranch(const QString &value);
+    void SetSelectedFilePath(const QString &value);
+    void SetCurrentDiff(const QString &value);
 
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
@@ -55,4 +64,6 @@ private:
     QString statusMessage;
     QString repositoryPath;
     QString currentBranch;
+    QString selectedFilePath;
+    QString currentDiff;
 };

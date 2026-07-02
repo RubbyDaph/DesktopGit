@@ -33,6 +33,12 @@ QVariant StatusFileModel::data(const QModelIndex &index, int role) const
         return file.DisplayStatus();
     case StagedRole:
         return file.IsStaged();
+    case AdditionsRole:
+        return file.additions;
+    case DeletionsRole:
+        return file.deletions;
+    case ChangesRole:
+        return file.Changes();
     default:
         return {};
     }
@@ -45,7 +51,10 @@ QHash<int, QByteArray> StatusFileModel::roleNames() const
         {IndexStatusRole, "indexStatus"},
         {WorktreeStatusRole, "worktreeStatus"},
         {DisplayStatusRole, "displayStatus"},
-        {StagedRole, "staged"}
+        {StagedRole, "staged"},
+        {AdditionsRole, "additions"},
+        {DeletionsRole, "deletions"},
+        {ChangesRole, "changes"}
     };
 }
 

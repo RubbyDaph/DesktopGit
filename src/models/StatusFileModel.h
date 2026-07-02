@@ -15,7 +15,10 @@ public:
         IndexStatusRole,
         WorktreeStatusRole,
         DisplayStatusRole,
-        StagedRole
+        StagedRole,
+        AdditionsRole,
+        DeletionsRole,
+        ChangesRole
     };
 
     explicit StatusFileModel(QObject *parent = nullptr);

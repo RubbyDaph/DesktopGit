@@ -16,6 +16,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
+    Test
 )
 
 qt_standard_project_setup(REQUIRES 6.5)
@@ -29,8 +30,28 @@ file(GLOB_RECURSE DESKTOP_GIT_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
 )
 
+set(DESKTOP_GIT_CORE_SOURCES ${DESKTOP_GIT_SOURCES})
+list(REMOVE_ITEM DESKTOP_GIT_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+
+qt_add_library(desktop_git_core STATIC
+    ${DESKTOP_GIT_CORE_SOURCES}
+)
+
+target_include_directories(desktop_git_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/git
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/models
+)
+
+target_link_libraries(desktop_git_core
+    PUBLIC
+        Qt6::Core
+)
+
 qt_add_executable(desktop_git
-    ${DESKTOP_GIT_SOURCES}
+    src/main.cpp
 )
 
 set_source_files_properties(src/ui/Main.qml
@@ -55,9 +76,24 @@ target_include_directories(desktop_git
 
 target_link_libraries(desktop_git
     PRIVATE
+        desktop_git_core
         Qt6::Core
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
 )
+
+enable_testing()
+
+qt_add_executable(desktop_git_tests
+    tests/TestDesktopGitCore.cpp
+)
+
+target_link_libraries(desktop_git_tests
+    PRIVATE
+        desktop_git_core
+        Qt6::Test
+)
+
+add_test(NAME desktop_git_tests COMMAND desktop_git_tests)

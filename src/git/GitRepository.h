@@ -20,6 +20,7 @@ public:
     bool IsValid() const;
     QString CurrentBranch() const;
     QList<GitStatusFile> Status() const;
+    QString Diff(const QString &filePath) const;
 
 private:
     QString path;

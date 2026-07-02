@@ -31,6 +31,16 @@ QString AppController::CurrentBranch() const
     return currentBranch;
 }
 
+QString AppController::SelectedFilePath() const
+{
+    return selectedFilePath;
+}
+
+QString AppController::CurrentDiff() const
+{
+    return currentDiff;
+}
+
 StatusFileModel *AppController::StatusFiles()
 {
     return &statusFileModel;
@@ -68,6 +78,9 @@ void AppController::OpenRepositoryPath(const QString &path)
     if (!gitRepository.IsValid()) {
         SetRepositoryPath(QString());
         SetCurrentBranch(QString());
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        statusFileModel.Clear();
         SetStatusMessage(QStringLiteral("Selected directory is not a Git repository."));
         return;
     }
@@ -88,6 +101,8 @@ void AppController::RefreshRepository()
 {
     if (repositoryPath.isEmpty()) {
         statusFileModel.Clear();
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
         return;
     }
@@ -97,6 +112,28 @@ void AppController::RefreshRepository()
 
     SetCurrentBranch(gitRepository.CurrentBranch());
     SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
+}
+
+void AppController::SelectStatusFile(const QString &path)
+{
+    if (repositoryPath.isEmpty()) {
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    SetSelectedFilePath(path);
+
+    const QString diff = gitRepository.Diff(path);
+    SetCurrentDiff(diff);
+
+    if (diff.isEmpty()) {
+        SetStatusMessage(QStringLiteral("No unstaged diff for %1.").arg(path));
+        return;
+    }
+
+    SetStatusMessage(QStringLiteral("Showing diff for %1.").arg(path));
 }
 
 void AppController::SetGitAvailable(bool value)
@@ -147,4 +184,24 @@ void AppController::SetCurrentBranch(const QString &value)
 
     currentBranch = value;
     emit CurrentBranchChanged();
+}
+
+void AppController::SetSelectedFilePath(const QString &value)
+{
+    if (selectedFilePath == value) {
+        return;
+    }
+
+    selectedFilePath = value;
+    emit SelectedFilePathChanged();
+}
+
+void AppController::SetCurrentDiff(const QString &value)
+{
+    if (currentDiff == value) {
+        return;
+    }
+
+    currentDiff = value;
+    emit CurrentDiffChanged();
 }

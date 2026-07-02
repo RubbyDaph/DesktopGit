@@ -7,6 +7,8 @@ struct GitStatusFile
     QString path;
     QString indexStatus;
     QString worktreeStatus;
+    int additions = 0;
+    int deletions = 0;
 
     [[nodiscard]] bool IsStaged() const
     {
@@ -20,5 +22,10 @@ struct GitStatusFile
         }
 
         return indexStatus + worktreeStatus;
+    }
+
+    [[nodiscard]] int Changes() const
+    {
+        return additions + deletions;
     }
 };
