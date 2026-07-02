@@ -1,7 +1,8 @@
+import QtCore
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
+import Qt.labs.folderlistmodel
 
 ApplicationWindow {
     id: window
@@ -37,16 +38,220 @@ ApplicationWindow {
     palette.highlight: accentColor
     palette.highlightedText: "#ffffff"
 
-    FolderDialog {
-        id: repositoryFolderDialog
+    Dialog {
+        id: repositoryPickerDialog
 
+        property string currentFolder: ""
+        property string selectedFolder: currentFolder
+
+        function normalizeFolder(folderPath) {
+            const path = String(folderPath)
+            return path.startsWith("file://") ? path : "file://" + path
+        }
+
+        function displayPath(folderUrl) {
+            const path = decodeURIComponent(String(folderUrl))
+            return path.startsWith("file://") ? path.substring(7) : path
+        }
+
+        function parentFolder(folderUrl) {
+            let path = String(folderUrl)
+
+            if (path.endsWith("/") && path.length > "file:///".length) {
+                path = path.substring(0, path.length - 1)
+            }
+
+            const lastSlash = path.lastIndexOf("/")
+            if (lastSlash <= "file://".length) {
+                return "file:///"
+            }
+
+            return path.substring(0, lastSlash)
+        }
+
+        function openFolder(folderUrl) {
+            currentFolder = String(folderUrl)
+            selectedFolder = currentFolder
+        }
+
+        function prepareOpen() {
+            if (appController.repositoryPath.length > 0) {
+                openFolder(normalizeFolder(appController.repositoryPath))
+            }
+
+            open()
+        }
+
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        width: Math.min(window.width - 48, 760)
+        height: Math.min(window.height - 64, 560)
+        modal: true
+        focus: true
         title: qsTr("Open Git repository")
+        standardButtons: Dialog.NoButton
 
-        onAccepted: appController.OpenRepository(selectedFolder)
+        background: Rectangle {
+            color: window.panelColor
+            border.color: window.borderColor
+            border.width: 1
+        }
+
+        FolderListModel {
+            id: repositoryFolderModel
+
+            folder: repositoryPickerDialog.currentFolder
+            showDirs: true
+            showFiles: false
+            showDotAndDotDot: false
+            sortField: FolderListModel.Name
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Label {
+                    text: qsTr("Open repository")
+                    color: window.textColor
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+
+                AppButton {
+                    text: qsTr("Up")
+                    enabled: repositoryPickerDialog.currentFolder !== "file:///"
+                    onClicked: repositoryPickerDialog.openFolder(
+                        repositoryPickerDialog.parentFolder(repositoryPickerDialog.currentFolder))
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 34
+                color: window.panelRaisedColor
+                border.color: window.borderColor
+                border.width: 1
+
+                Label {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    verticalAlignment: Text.AlignVCenter
+                    text: repositoryPickerDialog.displayPath(repositoryPickerDialog.currentFolder)
+                    color: window.mutedTextColor
+                    elide: Text.ElideMiddle
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: window.backgroundColor
+                border.color: window.borderColor
+                border.width: 1
+                clip: true
+
+                    ListView {
+                        id: repositoryFolderListView
+
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    clip: true
+                    model: repositoryFolderModel
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: ItemDelegate {
+                        id: repositoryFolderDelegate
+
+                        required property string fileName
+                        required property url fileUrl
+
+                        width: repositoryFolderListView.width
+                        height: 42
+                        highlighted: repositoryPickerDialog.selectedFolder === String(fileUrl)
+                        onClicked: repositoryPickerDialog.selectedFolder = String(fileUrl)
+                        onDoubleClicked: repositoryPickerDialog.openFolder(fileUrl)
+
+                        background: Rectangle {
+                            color: repositoryFolderDelegate.highlighted
+                                ? "#333842"
+                                : (repositoryFolderDelegate.hovered ? window.panelRaisedColor : "transparent")
+                            border.color: repositoryFolderDelegate.highlighted ? window.accentColor : "transparent"
+                            border.width: 1
+                        }
+
+                        contentItem: RowLayout {
+                            spacing: 8
+
+                            Label {
+                                text: "dir"
+                                color: window.mutedTextColor
+                                font.family: "monospace"
+                                Layout.preferredWidth: 34
+                            }
+
+                            Label {
+                                text: repositoryFolderDelegate.fileName
+                                color: window.textColor
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+
+                    Label {
+                        anchors.centerIn: parent
+                        visible: repositoryFolderModel.count === 0
+                        text: qsTr("No folders")
+                        color: window.mutedTextColor
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Label {
+                    text: qsTr("Selected: ") + repositoryPickerDialog.displayPath(repositoryPickerDialog.selectedFolder)
+                    color: window.mutedTextColor
+                    elide: Text.ElideMiddle
+                    Layout.fillWidth: true
+                }
+
+                AppButton {
+                    text: qsTr("Use Current")
+                    onClicked: repositoryPickerDialog.selectedFolder = repositoryPickerDialog.currentFolder
+                }
+
+                AppButton {
+                    text: qsTr("Cancel")
+                    onClicked: repositoryPickerDialog.close()
+                }
+
+                AppButton {
+                    text: qsTr("Open")
+                    primary: true
+                    onClicked: {
+                        appController.OpenRepository(repositoryPickerDialog.selectedFolder)
+                        repositoryPickerDialog.close()
+                    }
+                }
+            }
+        }
+
+        Component.onCompleted: openFolder(normalizeFolder(StandardPaths.writableLocation(StandardPaths.HomeLocation)))
     }
 
     header: ToolBar {
         id: mainToolBar
+
+        implicitHeight: 50
 
         background: Rectangle {
             color: window.panelColor
@@ -60,6 +265,8 @@ ApplicationWindow {
             anchors.fill: parent
             anchors.leftMargin: 12
             anchors.rightMargin: 12
+            anchors.topMargin: 7
+            anchors.bottomMargin: 7
             spacing: 8
 
             Label {
@@ -83,15 +290,16 @@ ApplicationWindow {
                 Layout.fillWidth: true
             }
 
-            Button {
+            AppButton {
                 id: openRepositoryButton
 
                 text: qsTr("Open")
+                primary: true
                 enabled: appController.gitAvailable
-                onClicked: repositoryFolderDialog.open()
+                onClicked: repositoryPickerDialog.prepareOpen()
             }
 
-            Button {
+            AppButton {
                 id: refreshRepositoryButton
 
                 text: appController.repositoryPath.length > 0 ? qsTr("Refresh") : qsTr("Check Git")
@@ -341,11 +549,12 @@ ApplicationWindow {
                     }
                 }
 
-                Button {
+                AppButton {
                     id: createCommitButton
 
                     Layout.fillWidth: true
                     text: qsTr("Commit")
+                    primary: true
                     enabled: false
                 }
 

@@ -59,11 +59,17 @@ set_source_files_properties(src/ui/Main.qml
         QT_RESOURCE_ALIAS Main.qml
 )
 
+set_source_files_properties(src/ui/components/AppButton.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS AppButton.qml
+)
+
 qt_add_qml_module(desktop_git
     URI DesktopGit
     VERSION 1.0
     QML_FILES
         src/ui/Main.qml
+        src/ui/components/AppButton.qml
 )
 
 target_include_directories(desktop_git
