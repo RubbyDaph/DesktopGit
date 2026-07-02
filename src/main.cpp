@@ -1,4 +1,7 @@
+#include "AppController.h"
+
 #include <QGuiApplication>
+#include <QQmlContext>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QUrl>
@@ -12,6 +15,9 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     QQmlApplicationEngine engine;
+    AppController appController;
+    engine.rootContext()->setContextProperty(QStringLiteral("appController"), &appController);
+
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

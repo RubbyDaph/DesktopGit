@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ApplicationWindow {
@@ -11,6 +12,14 @@ ApplicationWindow {
     minimumHeight: 560
     visible: true
     title: qsTr("DesktopGit")
+
+    FolderDialog {
+        id: repositoryFolderDialog
+
+        title: qsTr("Open Git repository")
+
+        onAccepted: appController.OpenRepository(selectedFolder)
+    }
 
     header: ToolBar {
         id: mainToolBar
@@ -34,7 +43,11 @@ ApplicationWindow {
             Label {
                 id: repositoryPathLabel
 
-                text: qsTr("No repository opened")
+                text: appController.repositoryPath.length > 0
+                    ? appController.repositoryPath + (appController.currentBranch.length > 0
+                        ? "  |  " + appController.currentBranch
+                        : "")
+                    : qsTr("No repository opened")
                 color: palette.mid
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
@@ -44,14 +57,15 @@ ApplicationWindow {
                 id: openRepositoryButton
 
                 text: qsTr("Open")
-                enabled: false
+                enabled: appController.gitAvailable
+                onClicked: repositoryFolderDialog.open()
             }
 
             Button {
                 id: refreshRepositoryButton
 
-                text: qsTr("Refresh")
-                enabled: false
+                text: qsTr("Check Git")
+                onClicked: appController.CheckGitAvailable()
             }
         }
     }
@@ -187,11 +201,13 @@ ApplicationWindow {
                     id: backendStatusLabel
 
                     Layout.fillWidth: true
-                    text: qsTr("Git backend is not connected yet.")
+                    text: appController.statusMessage
                     color: palette.mid
                     wrapMode: Text.WordWrap
                 }
             }
         }
     }
+
+    Component.onCompleted: appController.CheckGitAvailable()
 }
