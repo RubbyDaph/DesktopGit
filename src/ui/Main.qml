@@ -248,15 +248,18 @@ ApplicationWindow {
         Component.onCompleted: openFolder(normalizeFolder(StandardPaths.writableLocation(StandardPaths.HomeLocation)))
     }
 
-    Popup {
-        id: pushSummaryPopup
+    Dialog {
+        id: pushSummaryDialog
 
         x: Math.round((window.width - width) / 2)
         y: Math.round((window.height - height) / 2)
         width: Math.min(window.width - 48, 360)
+        visible: appController.pushSummaryVisible
         modal: true
         focus: true
-        closePolicy: Popup.CloseOnEscape
+        title: qsTr("Push completed")
+        standardButtons: Dialog.NoButton
+        closePolicy: Popup.NoAutoClose
 
         background: Rectangle {
             color: window.panelColor
@@ -325,7 +328,7 @@ ApplicationWindow {
                 text: qsTr("Ok")
                 primary: true
                 Layout.alignment: Qt.AlignRight
-                onClicked: pushSummaryPopup.close()
+                onClicked: appController.ClosePushSummary()
             }
         }
     }
@@ -773,7 +776,7 @@ ApplicationWindow {
         }
 
         function onPushCompleted() {
-            pushSummaryPopup.open()
+            commitMessageTextArea.clear()
         }
     }
 

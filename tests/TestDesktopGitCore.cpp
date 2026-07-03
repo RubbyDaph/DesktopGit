@@ -641,7 +641,11 @@ void TestDesktopGitCore::PushRepositoryFromController()
     QCOMPARE(pushCompletedSpy.count(), 1);
     QCOMPARE(controller.LastPushFilesChanged(), 1);
     QCOMPARE(controller.LastPushLineChanges(), 2);
+    QCOMPARE(controller.PushSummaryVisible(), true);
     QCOMPARE(controller.StatusMessage(), QStringLiteral("Push completed."));
+
+    controller.ClosePushSummary();
+    QCOMPARE(controller.PushSummaryVisible(), false);
 
     const GitCommandResult logResult = runner.Run({
         QStringLiteral("--git-dir"),

@@ -58,6 +58,11 @@ int AppController::LastPushLineChanges() const
     return lastPushLineChanges;
 }
 
+bool AppController::PushSummaryVisible() const
+{
+    return pushSummaryVisible;
+}
+
 QString AppController::CurrentDiff() const
 {
     return currentDiff;
@@ -348,7 +353,13 @@ void AppController::PushRepository()
 
     RefreshRepository();
     SetStatusMessage(QStringLiteral("Push completed."));
+    SetPushSummaryVisible(true);
     emit PushCompleted();
+}
+
+void AppController::ClosePushSummary()
+{
+    SetPushSummaryVisible(false);
 }
 
 void AppController::SetGitAvailable(bool value)
@@ -419,4 +430,14 @@ void AppController::SetCurrentDiff(const QString &value)
 
     currentDiff = value;
     emit CurrentDiffChanged();
+}
+
+void AppController::SetPushSummaryVisible(bool value)
+{
+    if (pushSummaryVisible == value) {
+        return;
+    }
+
+    pushSummaryVisible = value;
+    emit PushSummaryVisibleChanged();
 }
