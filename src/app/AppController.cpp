@@ -340,10 +340,17 @@ void AppController::PushRepository()
     const GitChangeSummary pushSummary = gitRepository.OutgoingChangeSummary();
     const GitCommandResult result = gitRepository.Push();
     if (!result.Success()) {
-        const QString error = result.standardError.trimmed();
-        SetStatusMessage(error.isEmpty()
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        if (result.timedOut) {
+            SetStatusMessage(QStringLiteral("Push timed out. Check your network connection or Git credentials."));
+            return;
+        }
+
+        SetStatusMessage(output.isEmpty()
             ? QStringLiteral("Failed to push repository.")
-            : error);
+            : output);
         return;
     }
 

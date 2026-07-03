@@ -277,5 +277,31 @@ GitCommandResult GitRepository::Push() const
         return {};
     }
 
-    return runner.Run({QStringLiteral("push")}, path);
+    constexpr int pushTimeoutMs = 120000;
+
+    GitCommandResult result = runner.Run({QStringLiteral("push")}, path, pushTimeoutMs);
+    if (result.Success()) {
+        return result;
+    }
+
+    const QString output = result.standardOutput + QLatin1Char('\n') + result.standardError;
+    const bool missingUpstream = output.contains(QStringLiteral("no upstream branch"))
+        || output.contains(QStringLiteral("--set-upstream"))
+        || output.contains(QStringLiteral("set the remote as upstream"));
+
+    if (!missingUpstream) {
+        return result;
+    }
+
+    const QString branch = CurrentBranch();
+    if (branch.isEmpty()) {
+        return result;
+    }
+
+    return runner.Run({
+        QStringLiteral("push"),
+        QStringLiteral("-u"),
+        QStringLiteral("origin"),
+        branch
+    }, path, pushTimeoutMs);
 }

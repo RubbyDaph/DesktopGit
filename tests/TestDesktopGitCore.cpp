@@ -46,6 +46,7 @@ private slots:
     void CommitRepositoryChanges();
     void CommitStagedFilesFromController();
     void PushRepositoryChanges();
+    void PushRepositorySetsUpstreamWhenMissing();
     void PushRepositoryFromController();
 };
 
@@ -559,6 +560,71 @@ void TestDesktopGitCore::PushRepositoryChanges()
     }, repositoryPath);
     QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
     QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Update file"));
+}
+
+void TestDesktopGitCore::PushRepositorySetsUpstreamWhenMissing()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.email"),
+        QStringLiteral("test@example.local")
+    }, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.name"),
+        QStringLiteral("DesktopGit Test")
+    }, repositoryPath).Success(), "git config user.name failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("remote"),
+        QStringLiteral("add"),
+        QStringLiteral("origin"),
+        remotePath
+    }, repositoryPath).Success(), "git remote add failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("first line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Initial commit")
+    }, repositoryPath).Success(), "git commit failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const GitCommandResult pushResult = repository.Push();
+    QVERIFY2(pushResult.Success(), qPrintable(pushResult.standardError));
+
+    const GitCommandResult upstreamResult = runner.Run({
+        QStringLiteral("rev-parse"),
+        QStringLiteral("--abbrev-ref"),
+        QStringLiteral("@{u}")
+    }, repositoryPath);
+    QVERIFY2(upstreamResult.Success(), qPrintable(upstreamResult.standardError));
+    QVERIFY(upstreamResult.standardOutput.trimmed().startsWith(QStringLiteral("origin/")));
+
+    const GitCommandResult logResult = runner.Run({
+        QStringLiteral("--git-dir"),
+        remotePath,
+        QStringLiteral("log"),
+        QStringLiteral("-1"),
+        QStringLiteral("--pretty=%s")
+    }, repositoryPath);
+    QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
+    QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Initial commit"));
 }
 
 void TestDesktopGitCore::PushRepositoryFromController()
