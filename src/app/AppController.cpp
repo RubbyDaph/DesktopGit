@@ -48,6 +48,16 @@ int AppController::StagedFileCount() const
     return statusFileModel.StagedCount();
 }
 
+int AppController::LastPushFilesChanged() const
+{
+    return lastPushFilesChanged;
+}
+
+int AppController::LastPushLineChanges() const
+{
+    return lastPushLineChanges;
+}
+
 QString AppController::CurrentDiff() const
 {
     return currentDiff;
@@ -322,6 +332,7 @@ void AppController::PushRepository()
         return;
     }
 
+    const GitChangeSummary pushSummary = gitRepository.OutgoingChangeSummary();
     const GitCommandResult result = gitRepository.Push();
     if (!result.Success()) {
         const QString error = result.standardError.trimmed();
@@ -330,6 +341,10 @@ void AppController::PushRepository()
             : error);
         return;
     }
+
+    lastPushFilesChanged = pushSummary.filesChanged;
+    lastPushLineChanges = pushSummary.LineChanges();
+    emit LastPushSummaryChanged();
 
     RefreshRepository();
     SetStatusMessage(QStringLiteral("Push completed."));

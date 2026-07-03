@@ -541,6 +541,12 @@ void TestDesktopGitCore::PushRepositoryChanges()
     const GitCommandResult commitResult = repository.Commit(QStringLiteral("Update file"));
     QVERIFY2(commitResult.Success(), qPrintable(commitResult.standardError));
 
+    const GitChangeSummary pushSummary = repository.OutgoingChangeSummary();
+    QCOMPARE(pushSummary.filesChanged, 1);
+    QCOMPARE(pushSummary.additions, 1);
+    QCOMPARE(pushSummary.deletions, 1);
+    QCOMPARE(pushSummary.LineChanges(), 2);
+
     const GitCommandResult pushResult = repository.Push();
     QVERIFY2(pushResult.Success(), qPrintable(pushResult.standardError));
 
@@ -633,6 +639,8 @@ void TestDesktopGitCore::PushRepositoryFromController()
     controller.PushRepository();
 
     QCOMPARE(pushCompletedSpy.count(), 1);
+    QCOMPARE(controller.LastPushFilesChanged(), 1);
+    QCOMPARE(controller.LastPushLineChanges(), 2);
     QCOMPARE(controller.StatusMessage(), QStringLiteral("Push completed."));
 
     const GitCommandResult logResult = runner.Run({

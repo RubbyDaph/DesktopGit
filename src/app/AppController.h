@@ -19,6 +19,8 @@ class AppController : public QObject
     Q_PROPERTY(QString selectedFilePath READ SelectedFilePath NOTIFY SelectedFilePathChanged)
     Q_PROPERTY(int selectedFileCount READ SelectedFileCount NOTIFY SelectedFilesChanged)
     Q_PROPERTY(int stagedFileCount READ StagedFileCount NOTIFY StagedFileCountChanged)
+    Q_PROPERTY(int lastPushFilesChanged READ LastPushFilesChanged NOTIFY LastPushSummaryChanged)
+    Q_PROPERTY(int lastPushLineChanges READ LastPushLineChanges NOTIFY LastPushSummaryChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
@@ -33,6 +35,8 @@ public:
     [[nodiscard]] QString SelectedFilePath() const;
     [[nodiscard]] int SelectedFileCount() const;
     [[nodiscard]] int StagedFileCount() const;
+    [[nodiscard]] int LastPushFilesChanged() const;
+    [[nodiscard]] int LastPushLineChanges() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
 
@@ -60,6 +64,7 @@ signals:
     void SelectedFilePathChanged();
     void SelectedFilesChanged();
     void StagedFileCountChanged();
+    void LastPushSummaryChanged();
     void CurrentDiffChanged();
     void CommitCreated();
     void PushCompleted();
@@ -83,4 +88,6 @@ private:
     QString currentBranch;
     QString selectedFilePath;
     QString currentDiff;
+    int lastPushFilesChanged = 0;
+    int lastPushLineChanges = 0;
 };

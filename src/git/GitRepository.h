@@ -7,6 +7,15 @@
 #include <QObject>
 #include <QString>
 
+struct GitChangeSummary
+{
+    int filesChanged = 0;
+    int additions = 0;
+    int deletions = 0;
+
+    [[nodiscard]] int LineChanges() const;
+};
+
 class GitRepository : public QObject
 {
     Q_OBJECT
@@ -24,6 +33,7 @@ public:
     bool StageFile(const QString &filePath) const;
     bool UnstageFile(const QString &filePath) const;
     GitCommandResult Commit(const QString &message) const;
+    GitChangeSummary OutgoingChangeSummary() const;
     GitCommandResult Push() const;
 
 private:

@@ -248,6 +248,88 @@ ApplicationWindow {
         Component.onCompleted: openFolder(normalizeFolder(StandardPaths.writableLocation(StandardPaths.HomeLocation)))
     }
 
+    Popup {
+        id: pushSummaryPopup
+
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        width: Math.min(window.width - 48, 360)
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+
+        background: Rectangle {
+            color: window.panelColor
+            border.color: window.borderColor
+            border.width: 1
+            radius: 6
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 14
+
+            Label {
+                text: qsTr("Push completed")
+                color: window.textColor
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: qsTr("Changes were pushed to the remote repository.")
+                color: window.mutedTextColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: window.borderColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    text: qsTr("Files pushed")
+                    color: window.mutedTextColor
+                    Layout.fillWidth: true
+                }
+
+                Label {
+                    text: appController.lastPushFilesChanged
+                    color: window.textColor
+                    font.family: "monospace"
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    text: qsTr("Line changes")
+                    color: window.mutedTextColor
+                    Layout.fillWidth: true
+                }
+
+                Label {
+                    text: appController.lastPushLineChanges
+                    color: window.textColor
+                    font.family: "monospace"
+                }
+            }
+
+            AppButton {
+                text: qsTr("Ok")
+                primary: true
+                Layout.alignment: Qt.AlignRight
+                onClicked: pushSummaryPopup.close()
+            }
+        }
+    }
+
     header: ToolBar {
         id: mainToolBar
 
@@ -688,6 +770,10 @@ ApplicationWindow {
 
         function onCommitCreated() {
             commitMessageTextArea.clear()
+        }
+
+        function onPushCompleted() {
+            pushSummaryPopup.open()
         }
     }
 

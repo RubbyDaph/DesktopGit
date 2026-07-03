@@ -57,6 +57,11 @@ GitRepository::GitRepository(QObject *parent)
 {
 }
 
+int GitChangeSummary::LineChanges() const
+{
+    return additions + deletions;
+}
+
 void GitRepository::SetPath(const QString &path)
 {
     this->path = path;
@@ -221,6 +226,49 @@ GitCommandResult GitRepository::Commit(const QString &message) const
         QStringLiteral("-m"),
         message
     }, path);
+}
+
+GitChangeSummary GitRepository::OutgoingChangeSummary() const
+{
+    GitChangeSummary summary;
+    if (path.isEmpty()) {
+        return summary;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("diff"),
+        QStringLiteral("--numstat"),
+        QStringLiteral("@{u}..HEAD")
+    }, path);
+
+    if (!result.Success()) {
+        return summary;
+    }
+
+    const QStringList lines = result.standardOutput.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        const QStringList parts = line.split(QLatin1Char('\t'));
+        if (parts.size() < 3) {
+            continue;
+        }
+
+        ++summary.filesChanged;
+
+        bool additionsOk = false;
+        bool deletionsOk = false;
+        const int additions = parts.at(0).toInt(&additionsOk);
+        const int deletions = parts.at(1).toInt(&deletionsOk);
+
+        if (additionsOk) {
+            summary.additions += additions;
+        }
+
+        if (deletionsOk) {
+            summary.deletions += deletions;
+        }
+    }
+
+    return summary;
 }
 
 GitCommandResult GitRepository::Push() const
