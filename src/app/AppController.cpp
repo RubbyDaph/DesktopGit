@@ -327,7 +327,7 @@ void AppController::CommitStagedFiles(const QString &message)
     SetSelectedFilePath(QString());
     SetCurrentDiff(QString());
     SetStatusMessage(QStringLiteral("Commit created."));
-    emit CommitCreated();
+    emit commitCreated();
 }
 
 void AppController::PushRepository()
@@ -361,7 +361,7 @@ void AppController::PushRepository()
     RefreshRepository();
     SetStatusMessage(QStringLiteral("Push completed."));
     SetPushSummaryVisible(true);
-    emit PushCompleted();
+    emit pushCompleted();
 }
 
 void AppController::ClosePushSummary()

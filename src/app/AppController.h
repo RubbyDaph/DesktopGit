@@ -70,8 +70,8 @@ signals:
     void LastPushSummaryChanged();
     void PushSummaryVisibleChanged();
     void CurrentDiffChanged();
-    void CommitCreated();
-    void PushCompleted();
+    void commitCreated();
+    void pushCompleted();
 
 private:
     void SetGitAvailable(bool value);

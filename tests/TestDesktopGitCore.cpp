@@ -457,7 +457,7 @@ void TestDesktopGitCore::CommitStagedFilesFromController()
     QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
 
     AppController controller;
-    QSignalSpy commitCreatedSpy(&controller, &AppController::CommitCreated);
+    QSignalSpy commitCreatedSpy(&controller, &AppController::commitCreated);
 
     controller.OpenRepositoryPath(repositoryPath);
     QCOMPARE(controller.StatusFiles()->rowCount(), 1);
@@ -654,7 +654,7 @@ void TestDesktopGitCore::PushRepositoryFromController()
     GitCommandRunner runner;
 
     AppController unopenedController;
-    QSignalSpy unopenedPushSpy(&unopenedController, &AppController::PushCompleted);
+    QSignalSpy unopenedPushSpy(&unopenedController, &AppController::pushCompleted);
     unopenedController.PushRepository();
     QCOMPARE(unopenedPushSpy.count(), 0);
     QCOMPARE(unopenedController.StatusMessage(), QStringLiteral("Open a Git repository first."));
@@ -705,8 +705,8 @@ void TestDesktopGitCore::PushRepositoryFromController()
     QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
 
     AppController controller;
-    QSignalSpy commitCreatedSpy(&controller, &AppController::CommitCreated);
-    QSignalSpy pushCompletedSpy(&controller, &AppController::PushCompleted);
+    QSignalSpy commitCreatedSpy(&controller, &AppController::commitCreated);
+    QSignalSpy pushCompletedSpy(&controller, &AppController::pushCompleted);
 
     controller.OpenRepositoryPath(repositoryPath);
     controller.SelectAllFiles();
