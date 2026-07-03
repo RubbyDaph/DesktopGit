@@ -23,6 +23,7 @@ public:
     QString Diff(const QString &filePath) const;
     bool StageFile(const QString &filePath) const;
     bool UnstageFile(const QString &filePath) const;
+    GitCommandResult Commit(const QString &message) const;
 
 private:
     QString path;

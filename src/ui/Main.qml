@@ -334,13 +334,37 @@ ApplicationWindow {
                 anchors.fill: parent
                 spacing: 8
 
-                Label {
-                    id: changesTitleLabel
+                RowLayout {
+                    id: changesHeaderLayout
 
-                    text: qsTr("Changes")
-                    color: window.textColor
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        id: changesTitleLabel
+
+                        text: qsTr("Changes")
+                        color: window.textColor
+                        font.pixelSize: 16
+                        font.weight: Font.DemiBold
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        id: selectAllFilesButton
+
+                        text: qsTr("Select all")
+                        enabled: changedFilesListView.count > 0
+                        onClicked: appController.SelectAllFiles()
+                    }
+
+                    AppButton {
+                        id: clearFileSelectionButton
+
+                        text: qsTr("Clear")
+                        enabled: appController.selectedFileCount > 0
+                        onClicked: appController.ClearFileSelection()
+                    }
                 }
 
                 ListView {
@@ -371,6 +395,37 @@ ApplicationWindow {
 
                         contentItem: RowLayout {
                             spacing: 8
+
+                            CheckBox {
+                                id: statusFileSelectionCheckBox
+
+                                checked: model.selected
+                                onClicked: appController.ToggleFileSelection(model.path)
+
+                                indicator: Rectangle {
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    x: statusFileSelectionCheckBox.leftPadding
+                                    y: parent.height / 2 - height / 2
+                                    radius: 3
+                                    color: statusFileSelectionCheckBox.checked
+                                        ? window.accentColor
+                                        : window.panelRaisedColor
+                                    border.color: statusFileSelectionCheckBox.checked
+                                        ? window.accentColor
+                                        : window.borderColor
+                                    border.width: 1
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 8
+                                        height: 8
+                                        radius: 2
+                                        visible: statusFileSelectionCheckBox.checked
+                                        color: "#ffffff"
+                                    }
+                                }
+                            }
 
                             Label {
                                 text: model.displayStatus
@@ -535,9 +590,11 @@ ApplicationWindow {
                     id: selectedFileLabel
 
                     Layout.fillWidth: true
-                    text: appController.selectedFilePath.length > 0
-                        ? appController.selectedFilePath
-                        : qsTr("No file selected")
+                    text: appController.selectedFileCount > 0
+                        ? qsTr("%1 selected file(s)").arg(appController.selectedFileCount)
+                        : (appController.selectedFilePath.length > 0
+                            ? appController.selectedFilePath
+                            : qsTr("No file selected"))
                     color: window.mutedTextColor
                     elide: Text.ElideMiddle
                 }
@@ -551,8 +608,8 @@ ApplicationWindow {
 
                         Layout.fillWidth: true
                         text: qsTr("Stage")
-                        enabled: appController.selectedFilePath.length > 0
-                        onClicked: appController.StageSelectedFile()
+                        enabled: appController.selectedFileCount > 0
+                        onClicked: appController.StageSelectedFiles()
                     }
 
                     AppButton {
@@ -560,8 +617,8 @@ ApplicationWindow {
 
                         Layout.fillWidth: true
                         text: qsTr("Unstage")
-                        enabled: appController.selectedFilePath.length > 0
-                        onClicked: appController.UnstageSelectedFile()
+                        enabled: appController.selectedFileCount > 0
+                        onClicked: appController.UnstageSelectedFiles()
                     }
                 }
 
@@ -572,7 +629,7 @@ ApplicationWindow {
                     Layout.preferredHeight: 160
                     placeholderText: qsTr("Commit message")
                     wrapMode: TextEdit.Wrap
-                    enabled: false
+                    enabled: appController.repositoryPath.length > 0
                     color: window.textColor
                     placeholderTextColor: window.mutedTextColor
 
@@ -589,7 +646,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: qsTr("Commit")
                     primary: true
-                    enabled: false
+                    enabled: appController.stagedFileCount > 0
+                        && commitMessageTextArea.text.trim().length > 0
+                    onClicked: appController.CommitStagedFiles(commitMessageTextArea.text)
                 }
 
                 Item {
@@ -607,6 +666,14 @@ ApplicationWindow {
                     wrapMode: Text.WordWrap
                 }
             }
+        }
+    }
+
+    Connections {
+        target: appController
+
+        function onCommitCreated() {
+            commitMessageTextArea.clear()
         }
     }
 

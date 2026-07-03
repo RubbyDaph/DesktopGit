@@ -4,6 +4,8 @@
 
 #include <QAbstractListModel>
 #include <QList>
+#include <QSet>
+#include <QStringList>
 
 class StatusFileModel : public QAbstractListModel
 {
@@ -18,7 +20,8 @@ public:
         StagedRole,
         AdditionsRole,
         DeletionsRole,
-        ChangesRole
+        ChangesRole,
+        SelectedRole
     };
 
     explicit StatusFileModel(QObject *parent = nullptr);
@@ -29,7 +32,15 @@ public:
 
     void SetFiles(const QList<GitStatusFile> &files);
     void Clear();
+    [[nodiscard]] QStringList SelectedPaths() const;
+    [[nodiscard]] int SelectedCount() const;
+    [[nodiscard]] int StagedCount() const;
+    [[nodiscard]] bool IsSelected(const QString &path) const;
+    void ToggleSelected(const QString &path);
+    void SelectAll();
+    void ClearSelection();
 
 private:
     QList<GitStatusFile> files;
+    QSet<QString> selectedPaths;
 };

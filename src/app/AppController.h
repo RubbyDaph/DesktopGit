@@ -17,6 +17,8 @@ class AppController : public QObject
     Q_PROPERTY(QString repositoryPath READ RepositoryPath NOTIFY RepositoryPathChanged)
     Q_PROPERTY(QString currentBranch READ CurrentBranch NOTIFY CurrentBranchChanged)
     Q_PROPERTY(QString selectedFilePath READ SelectedFilePath NOTIFY SelectedFilePathChanged)
+    Q_PROPERTY(int selectedFileCount READ SelectedFileCount NOTIFY SelectedFilesChanged)
+    Q_PROPERTY(int stagedFileCount READ StagedFileCount NOTIFY StagedFileCountChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
@@ -29,6 +31,8 @@ public:
     [[nodiscard]] QString RepositoryPath() const;
     [[nodiscard]] QString CurrentBranch() const;
     [[nodiscard]] QString SelectedFilePath() const;
+    [[nodiscard]] int SelectedFileCount() const;
+    [[nodiscard]] int StagedFileCount() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
 
@@ -37,8 +41,14 @@ public:
     Q_INVOKABLE void OpenRepositoryPath(const QString &path);
     Q_INVOKABLE void RefreshRepository();
     Q_INVOKABLE void SelectStatusFile(const QString &path);
+    Q_INVOKABLE void ToggleFileSelection(const QString &path);
+    Q_INVOKABLE void SelectAllFiles();
+    Q_INVOKABLE void ClearFileSelection();
     Q_INVOKABLE void StageSelectedFile();
     Q_INVOKABLE void UnstageSelectedFile();
+    Q_INVOKABLE void StageSelectedFiles();
+    Q_INVOKABLE void UnstageSelectedFiles();
+    Q_INVOKABLE void CommitStagedFiles(const QString &message);
 
 signals:
     void GitAvailableChanged();
@@ -47,7 +57,10 @@ signals:
     void RepositoryPathChanged();
     void CurrentBranchChanged();
     void SelectedFilePathChanged();
+    void SelectedFilesChanged();
+    void StagedFileCountChanged();
     void CurrentDiffChanged();
+    void CommitCreated();
 
 private:
     void SetGitAvailable(bool value);

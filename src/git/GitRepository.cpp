@@ -209,3 +209,16 @@ bool GitRepository::UnstageFile(const QString &filePath) const
 
     return result.Success();
 }
+
+GitCommandResult GitRepository::Commit(const QString &message) const
+{
+    if (path.isEmpty() || message.trimmed().isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        message
+    }, path);
+}

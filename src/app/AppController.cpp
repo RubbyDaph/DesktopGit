@@ -1,5 +1,7 @@
 #include "AppController.h"
 
+#include <QStringList>
+
 AppController::AppController(QObject *parent)
     : QObject(parent)
 {
@@ -34,6 +36,16 @@ QString AppController::CurrentBranch() const
 QString AppController::SelectedFilePath() const
 {
     return selectedFilePath;
+}
+
+int AppController::SelectedFileCount() const
+{
+    return statusFileModel.SelectedCount();
+}
+
+int AppController::StagedFileCount() const
+{
+    return statusFileModel.StagedCount();
 }
 
 QString AppController::CurrentDiff() const
@@ -81,6 +93,8 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Selected directory is not a Git repository."));
         return;
     }
@@ -101,6 +115,8 @@ void AppController::RefreshRepository()
 {
     if (repositoryPath.isEmpty()) {
         statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
@@ -109,6 +125,8 @@ void AppController::RefreshRepository()
 
     const QList<GitStatusFile> files = gitRepository.Status();
     statusFileModel.SetFiles(files);
+    emit SelectedFilesChanged();
+    emit StagedFileCountChanged();
 
     SetCurrentBranch(gitRepository.CurrentBranch());
     SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
@@ -134,6 +152,24 @@ void AppController::SelectStatusFile(const QString &path)
     }
 
     SetStatusMessage(QStringLiteral("Showing diff for %1.").arg(path));
+}
+
+void AppController::ToggleFileSelection(const QString &path)
+{
+    statusFileModel.ToggleSelected(path);
+    emit SelectedFilesChanged();
+}
+
+void AppController::SelectAllFiles()
+{
+    statusFileModel.SelectAll();
+    emit SelectedFilesChanged();
+}
+
+void AppController::ClearFileSelection()
+{
+    statusFileModel.ClearSelection();
+    emit SelectedFilesChanged();
 }
 
 void AppController::StageSelectedFile()
@@ -170,6 +206,113 @@ void AppController::UnstageSelectedFile()
     RefreshRepository();
     SelectStatusFile(filePath);
     SetStatusMessage(QStringLiteral("Unstaged %1.").arg(filePath));
+}
+
+void AppController::StageSelectedFiles()
+{
+    const QStringList filePaths = statusFileModel.SelectedPaths();
+    if (filePaths.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select at least one file first."));
+        return;
+    }
+
+    int stagedCount = 0;
+    QString failedFilePath;
+    for (const QString &filePath : filePaths) {
+        if (gitRepository.StageFile(filePath)) {
+            ++stagedCount;
+            continue;
+        }
+
+        failedFilePath = filePath;
+        break;
+    }
+
+    const QString activeFilePath = selectedFilePath;
+    RefreshRepository();
+    if (!activeFilePath.isEmpty()) {
+        SelectStatusFile(activeFilePath);
+    }
+
+    if (!failedFilePath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Staged %1 file(s), failed to stage %2.")
+            .arg(stagedCount)
+            .arg(failedFilePath));
+        return;
+    }
+
+    SetStatusMessage(QStringLiteral("Staged %1 file(s).").arg(stagedCount));
+}
+
+void AppController::UnstageSelectedFiles()
+{
+    const QStringList filePaths = statusFileModel.SelectedPaths();
+    if (filePaths.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select at least one file first."));
+        return;
+    }
+
+    int unstagedCount = 0;
+    QString failedFilePath;
+    for (const QString &filePath : filePaths) {
+        if (gitRepository.UnstageFile(filePath)) {
+            ++unstagedCount;
+            continue;
+        }
+
+        failedFilePath = filePath;
+        break;
+    }
+
+    const QString activeFilePath = selectedFilePath;
+    RefreshRepository();
+    if (!activeFilePath.isEmpty()) {
+        SelectStatusFile(activeFilePath);
+    }
+
+    if (!failedFilePath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Unstaged %1 file(s), failed to unstage %2.")
+            .arg(unstagedCount)
+            .arg(failedFilePath));
+        return;
+    }
+
+    SetStatusMessage(QStringLiteral("Unstaged %1 file(s).").arg(unstagedCount));
+}
+
+void AppController::CommitStagedFiles(const QString &message)
+{
+    const QString trimmedMessage = message.trimmed();
+    if (repositoryPath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (statusFileModel.StagedCount() == 0) {
+        SetStatusMessage(QStringLiteral("Stage at least one file before committing."));
+        return;
+    }
+
+    if (trimmedMessage.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Commit message cannot be empty."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.Commit(trimmedMessage);
+    if (!result.Success()) {
+        const QString error = result.standardError.trimmed();
+        SetStatusMessage(error.isEmpty()
+            ? QStringLiteral("Failed to create commit.")
+            : error);
+        return;
+    }
+
+    RefreshRepository();
+    ClearFileSelection();
+    SetSelectedFilePath(QString());
+    SetCurrentDiff(QString());
+    SetStatusMessage(QStringLiteral("Commit created."));
+    emit CommitCreated();
 }
 
 void AppController::SetGitAvailable(bool value)

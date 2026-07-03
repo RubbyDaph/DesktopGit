@@ -1,3 +1,4 @@
+#include "AppController.h"
 #include "GitCommandRunner.h"
 #include "GitDiffFormatter.h"
 #include "GitRepository.h"
@@ -36,10 +37,14 @@ private slots:
     void IgnoreInvalidStatusLines();
     void PopulateStatusFileModel();
     void ClearStatusFileModel();
+    void SelectStatusFilesInModel();
     void RunGitVersionCommand();
     void FormatDiffForDisplay();
     void ReadStatusAndDiffFromRepository();
     void StageAndUnstageRepositoryFile();
+    void StageAndUnstageSelectedFilesFromController();
+    void CommitRepositoryChanges();
+    void CommitStagedFilesFromController();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -101,6 +106,7 @@ void TestDesktopGitCore::PopulateStatusFileModel()
     QCOMPARE(model.data(index, StatusFileModel::AdditionsRole).toInt(), 3);
     QCOMPARE(model.data(index, StatusFileModel::DeletionsRole).toInt(), 1);
     QCOMPARE(model.data(index, StatusFileModel::ChangesRole).toInt(), 4);
+    QCOMPARE(model.StagedCount(), 1);
     QVERIFY(model.data(model.index(2, 0), StatusFileModel::PathRole).isNull());
 }
 
@@ -117,6 +123,37 @@ void TestDesktopGitCore::ClearStatusFileModel()
 
     model.Clear();
     QCOMPARE(model.rowCount(), 0);
+}
+
+void TestDesktopGitCore::SelectStatusFilesInModel()
+{
+    StatusFileModel model;
+
+    GitStatusFile firstFile;
+    firstFile.path = QStringLiteral("first.txt");
+
+    GitStatusFile secondFile;
+    secondFile.path = QStringLiteral("second.txt");
+
+    model.SetFiles({firstFile, secondFile});
+    QCOMPARE(model.SelectedCount(), 0);
+
+    model.ToggleSelected(QStringLiteral("first.txt"));
+    QCOMPARE(model.SelectedCount(), 1);
+    QCOMPARE(model.SelectedPaths(), QStringList({QStringLiteral("first.txt")}));
+    QCOMPARE(model.data(model.index(0, 0), StatusFileModel::SelectedRole).toBool(), true);
+    QCOMPARE(model.data(model.index(1, 0), StatusFileModel::SelectedRole).toBool(), false);
+
+    model.SelectAll();
+    QCOMPARE(model.SelectedCount(), 2);
+
+    model.ClearSelection();
+    QCOMPARE(model.SelectedCount(), 0);
+    QCOMPARE(model.data(model.index(0, 0), StatusFileModel::SelectedRole).toBool(), false);
+
+    model.ToggleSelected(QStringLiteral("first.txt"));
+    model.SetFiles({secondFile});
+    QCOMPARE(model.SelectedCount(), 0);
 }
 
 void TestDesktopGitCore::RunGitVersionCommand()
@@ -254,6 +291,188 @@ void TestDesktopGitCore::StageAndUnstageRepositoryFile()
     QCOMPARE(statusFiles.size(), 1);
     QCOMPARE(statusFiles.first().indexStatus, QString());
     QCOMPARE(statusFiles.first().worktreeStatus, QStringLiteral("M"));
+}
+
+void TestDesktopGitCore::StageAndUnstageSelectedFilesFromController()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.email"),
+        QStringLiteral("test@example.local")
+    }, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.name"),
+        QStringLiteral("DesktopGit Test")
+    }, repositoryPath).Success(), "git config user.name failed");
+
+    const QString firstFilePath = QDir(repositoryPath).filePath(QStringLiteral("first.txt"));
+    const QString secondFilePath = QDir(repositoryPath).filePath(QStringLiteral("second.txt"));
+    QVERIFY(WriteTextFile(firstFilePath, QStringLiteral("old first\n")));
+    QVERIFY(WriteTextFile(secondFilePath, QStringLiteral("old second\n")));
+    QVERIFY2(runner.Run({
+        QStringLiteral("add"),
+        QStringLiteral("first.txt"),
+        QStringLiteral("second.txt")
+    }, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Initial commit")
+    }, repositoryPath).Success(), "git commit failed");
+
+    QVERIFY(WriteTextFile(firstFilePath, QStringLiteral("new first\n")));
+    QVERIFY(WriteTextFile(secondFilePath, QStringLiteral("new second\n")));
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    StatusFileModel *model = controller.StatusFiles();
+    QCOMPARE(model->rowCount(), 2);
+
+    controller.SelectAllFiles();
+    QCOMPARE(controller.SelectedFileCount(), 2);
+
+    controller.StageSelectedFiles();
+    QCOMPARE(controller.SelectedFileCount(), 2);
+    QCOMPARE(model->rowCount(), 2);
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const QModelIndex index = model->index(row, 0);
+        QCOMPARE(model->data(index, StatusFileModel::IndexStatusRole).toString(), QStringLiteral("M"));
+        QCOMPARE(model->data(index, StatusFileModel::WorktreeStatusRole).toString(), QString());
+    }
+
+    controller.UnstageSelectedFiles();
+    QCOMPARE(controller.SelectedFileCount(), 2);
+    QCOMPARE(model->rowCount(), 2);
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const QModelIndex index = model->index(row, 0);
+        QCOMPARE(model->data(index, StatusFileModel::IndexStatusRole).toString(), QString());
+        QCOMPARE(model->data(index, StatusFileModel::WorktreeStatusRole).toString(), QStringLiteral("M"));
+    }
+}
+
+void TestDesktopGitCore::CommitRepositoryChanges()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.email"),
+        QStringLiteral("test@example.local")
+    }, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.name"),
+        QStringLiteral("DesktopGit Test")
+    }, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Initial commit")
+    }, repositoryPath).Success(), "git commit failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    QVERIFY(repository.StageFile(QStringLiteral("file.txt")));
+
+    const GitCommandResult commitResult = repository.Commit(QStringLiteral("Update file"));
+    QVERIFY2(commitResult.Success(), qPrintable(commitResult.standardError));
+    QCOMPARE(repository.Status().size(), 0);
+
+    const GitCommandResult logResult = runner.Run({
+        QStringLiteral("log"),
+        QStringLiteral("-1"),
+        QStringLiteral("--pretty=%s")
+    }, repositoryPath);
+    QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
+    QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Update file"));
+}
+
+void TestDesktopGitCore::CommitStagedFilesFromController()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.email"),
+        QStringLiteral("test@example.local")
+    }, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.name"),
+        QStringLiteral("DesktopGit Test")
+    }, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Initial commit")
+    }, repositoryPath).Success(), "git commit failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
+
+    AppController controller;
+    QSignalSpy commitCreatedSpy(&controller, &AppController::CommitCreated);
+
+    controller.OpenRepositoryPath(repositoryPath);
+    QCOMPARE(controller.StatusFiles()->rowCount(), 1);
+
+    controller.CommitStagedFiles(QStringLiteral("No staged files"));
+    QCOMPARE(commitCreatedSpy.count(), 0);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Stage at least one file before committing."));
+
+    controller.SelectAllFiles();
+    controller.StageSelectedFiles();
+    QCOMPARE(controller.StagedFileCount(), 1);
+
+    controller.CommitStagedFiles(QStringLiteral("   "));
+    QCOMPARE(commitCreatedSpy.count(), 0);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Commit message cannot be empty."));
+
+    controller.CommitStagedFiles(QStringLiteral("Update file"));
+    QCOMPARE(commitCreatedSpy.count(), 1);
+    QCOMPARE(controller.StatusFiles()->rowCount(), 0);
+    QCOMPARE(controller.StagedFileCount(), 0);
+    QCOMPARE(controller.SelectedFileCount(), 0);
+    QCOMPARE(controller.SelectedFilePath(), QString());
+    QCOMPARE(controller.CurrentDiff(), QString());
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Commit created."));
+
+    const GitCommandResult logResult = runner.Run({
+        QStringLiteral("log"),
+        QStringLiteral("-1"),
+        QStringLiteral("--pretty=%s")
+    }, repositoryPath);
+    QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
+    QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Update file"));
 }
 
 QTEST_MAIN(TestDesktopGitCore)
