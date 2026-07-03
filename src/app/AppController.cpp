@@ -1,6 +1,18 @@
 #include "AppController.h"
 
+#include <QFutureWatcher>
 #include <QStringList>
+#include <QtConcurrent>
+
+namespace {
+
+struct PushOperationResult
+{
+    GitChangeSummary summary;
+    GitCommandResult commandResult;
+};
+
+}
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -61,6 +73,11 @@ int AppController::LastPushLineChanges() const
 bool AppController::PushSummaryVisible() const
 {
     return pushSummaryVisible;
+}
+
+bool AppController::PushInProgress() const
+{
+    return pushInProgress;
 }
 
 QString AppController::CurrentDiff() const
@@ -337,31 +354,57 @@ void AppController::PushRepository()
         return;
     }
 
-    const GitChangeSummary pushSummary = gitRepository.OutgoingChangeSummary();
-    const GitCommandResult result = gitRepository.Push();
-    if (!result.Success()) {
-        const QString output = (result.standardError.trimmed().isEmpty()
-            ? result.standardOutput
-            : result.standardError).trimmed();
-        if (result.timedOut) {
-            SetStatusMessage(QStringLiteral("Push timed out. Check your network connection or Git credentials."));
-            return;
-        }
-
-        SetStatusMessage(output.isEmpty()
-            ? QStringLiteral("Failed to push repository.")
-            : output);
+    if (pushInProgress) {
         return;
     }
 
-    lastPushFilesChanged = pushSummary.filesChanged;
-    lastPushLineChanges = pushSummary.LineChanges();
-    emit LastPushSummaryChanged();
+    SetPushInProgress(true);
+    SetStatusMessage(QStringLiteral("Pushing changes..."));
 
-    RefreshRepository();
-    SetStatusMessage(QStringLiteral("Push completed."));
-    SetPushSummaryVisible(true);
-    emit pushCompleted();
+    const QString pushedRepositoryPath = repositoryPath;
+    auto *watcher = new QFutureWatcher<PushOperationResult>(this);
+    connect(watcher, &QFutureWatcher<PushOperationResult>::finished, this, [this, watcher, pushedRepositoryPath]() {
+        const PushOperationResult pushResult = watcher->result();
+        watcher->deleteLater();
+
+        SetPushInProgress(false);
+
+        if (!pushResult.commandResult.Success()) {
+            const QString output = (pushResult.commandResult.standardError.trimmed().isEmpty()
+                ? pushResult.commandResult.standardOutput
+                : pushResult.commandResult.standardError).trimmed();
+            if (pushResult.commandResult.timedOut) {
+                SetStatusMessage(QStringLiteral("Push timed out. Check your network connection or Git credentials."));
+                return;
+            }
+
+            SetStatusMessage(output.isEmpty()
+                ? QStringLiteral("Failed to push repository.")
+                : output);
+            return;
+        }
+
+        lastPushFilesChanged = pushResult.summary.filesChanged;
+        lastPushLineChanges = pushResult.summary.LineChanges();
+        emit LastPushSummaryChanged();
+
+        if (repositoryPath == pushedRepositoryPath) {
+            RefreshRepository();
+        }
+        SetStatusMessage(QStringLiteral("Push completed."));
+        SetPushSummaryVisible(true);
+        emit pushCompleted();
+    });
+
+    watcher->setFuture(QtConcurrent::run([pushedRepositoryPath]() {
+        GitRepository repository;
+        repository.SetPath(pushedRepositoryPath);
+
+        PushOperationResult result;
+        result.summary = repository.OutgoingChangeSummary();
+        result.commandResult = repository.Push();
+        return result;
+    }));
 }
 
 void AppController::ClosePushSummary()
@@ -447,4 +490,14 @@ void AppController::SetPushSummaryVisible(bool value)
 
     pushSummaryVisible = value;
     emit PushSummaryVisibleChanged();
+}
+
+void AppController::SetPushInProgress(bool value)
+{
+    if (pushInProgress == value) {
+        return;
+    }
+
+    pushInProgress = value;
+    emit PushInProgressChanged();
 }

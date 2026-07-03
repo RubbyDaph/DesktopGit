@@ -718,7 +718,11 @@ void TestDesktopGitCore::PushRepositoryFromController()
 
     controller.PushRepository();
 
+    QCOMPARE(controller.PushInProgress(), true);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Pushing changes..."));
+    QVERIFY(pushCompletedSpy.wait(5000));
     QCOMPARE(pushCompletedSpy.count(), 1);
+    QCOMPARE(controller.PushInProgress(), false);
     QCOMPARE(controller.LastPushFilesChanged(), 1);
     QCOMPARE(controller.LastPushLineChanges(), 2);
     QCOMPARE(controller.PushSummaryVisible(), true);

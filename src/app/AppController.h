@@ -22,6 +22,7 @@ class AppController : public QObject
     Q_PROPERTY(int lastPushFilesChanged READ LastPushFilesChanged NOTIFY LastPushSummaryChanged)
     Q_PROPERTY(int lastPushLineChanges READ LastPushLineChanges NOTIFY LastPushSummaryChanged)
     Q_PROPERTY(bool pushSummaryVisible READ PushSummaryVisible NOTIFY PushSummaryVisibleChanged)
+    Q_PROPERTY(bool pushInProgress READ PushInProgress NOTIFY PushInProgressChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
@@ -39,6 +40,7 @@ public:
     [[nodiscard]] int LastPushFilesChanged() const;
     [[nodiscard]] int LastPushLineChanges() const;
     [[nodiscard]] bool PushSummaryVisible() const;
+    [[nodiscard]] bool PushInProgress() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
 
@@ -69,6 +71,7 @@ signals:
     void StagedFileCountChanged();
     void LastPushSummaryChanged();
     void PushSummaryVisibleChanged();
+    void PushInProgressChanged();
     void CurrentDiffChanged();
     void commitCreated();
     void pushCompleted();
@@ -82,6 +85,7 @@ private:
     void SetSelectedFilePath(const QString &value);
     void SetCurrentDiff(const QString &value);
     void SetPushSummaryVisible(bool value);
+    void SetPushInProgress(bool value);
 
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
@@ -96,4 +100,5 @@ private:
     int lastPushFilesChanged = 0;
     int lastPushLineChanges = 0;
     bool pushSummaryVisible = false;
+    bool pushInProgress = false;
 };

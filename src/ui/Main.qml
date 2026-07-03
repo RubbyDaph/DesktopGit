@@ -735,7 +735,8 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: qsTr("Commit")
                         primary: true
-                        enabled: appController.stagedFileCount > 0
+                        enabled: !appController.pushInProgress
+                            && appController.stagedFileCount > 0
                             && commitMessageTextArea.text.trim().length > 0
                         onClicked: appController.CommitStagedFiles(commitMessageTextArea.text)
                     }
@@ -746,7 +747,43 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: qsTr("Push")
                         enabled: appController.repositoryPath.length > 0
+                            && !appController.pushInProgress
                         onClicked: appController.PushRepository()
+                    }
+                }
+
+                ProgressBar {
+                    id: pushProgressBar
+
+                    Layout.fillWidth: true
+                    visible: appController.pushInProgress
+                    indeterminate: true
+
+                    background: Rectangle {
+                        implicitHeight: 4
+                        color: window.panelRaisedColor
+                        radius: 2
+                    }
+
+                    contentItem: Item {
+                        implicitHeight: 4
+
+                        Rectangle {
+                            id: pushProgressIndicator
+
+                            width: parent.width * 0.35
+                            height: parent.height
+                            radius: 2
+                            color: window.accentColor
+
+                            NumberAnimation on x {
+                                from: 0
+                                to: Math.max(0, pushProgressIndicator.parent.width - pushProgressIndicator.width)
+                                duration: 900
+                                loops: Animation.Infinite
+                                running: pushProgressBar.visible
+                            }
+                        }
                     }
                 }
 

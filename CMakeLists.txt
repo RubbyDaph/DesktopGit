@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS
+    Concurrent
     Core
     Gui
     Qml
@@ -47,6 +48,7 @@ target_include_directories(desktop_git_core
 
 target_link_libraries(desktop_git_core
     PUBLIC
+        Qt6::Concurrent
         Qt6::Core
 )
 
