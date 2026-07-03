@@ -49,6 +49,7 @@ public:
     Q_INVOKABLE void StageSelectedFiles();
     Q_INVOKABLE void UnstageSelectedFiles();
     Q_INVOKABLE void CommitStagedFiles(const QString &message);
+    Q_INVOKABLE void PushRepository();
 
 signals:
     void GitAvailableChanged();
@@ -61,6 +62,7 @@ signals:
     void StagedFileCountChanged();
     void CurrentDiffChanged();
     void CommitCreated();
+    void PushCompleted();
 
 private:
     void SetGitAvailable(bool value);

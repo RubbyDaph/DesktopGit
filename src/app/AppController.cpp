@@ -315,6 +315,27 @@ void AppController::CommitStagedFiles(const QString &message)
     emit CommitCreated();
 }
 
+void AppController::PushRepository()
+{
+    if (repositoryPath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.Push();
+    if (!result.Success()) {
+        const QString error = result.standardError.trimmed();
+        SetStatusMessage(error.isEmpty()
+            ? QStringLiteral("Failed to push repository.")
+            : error);
+        return;
+    }
+
+    RefreshRepository();
+    SetStatusMessage(QStringLiteral("Push completed."));
+    emit PushCompleted();
+}
+
 void AppController::SetGitAvailable(bool value)
 {
     if (gitAvailable == value) {

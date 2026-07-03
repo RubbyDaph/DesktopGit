@@ -222,3 +222,12 @@ GitCommandResult GitRepository::Commit(const QString &message) const
         message
     }, path);
 }
+
+GitCommandResult GitRepository::Push() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({QStringLiteral("push")}, path);
+}

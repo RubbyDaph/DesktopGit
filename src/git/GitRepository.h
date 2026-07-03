@@ -24,6 +24,7 @@ public:
     bool StageFile(const QString &filePath) const;
     bool UnstageFile(const QString &filePath) const;
     GitCommandResult Commit(const QString &message) const;
+    GitCommandResult Push() const;
 
 private:
     QString path;

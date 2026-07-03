@@ -640,15 +640,29 @@ ApplicationWindow {
                     }
                 }
 
-                AppButton {
-                    id: createCommitButton
-
+                RowLayout {
                     Layout.fillWidth: true
-                    text: qsTr("Commit")
-                    primary: true
-                    enabled: appController.stagedFileCount > 0
-                        && commitMessageTextArea.text.trim().length > 0
-                    onClicked: appController.CommitStagedFiles(commitMessageTextArea.text)
+                    spacing: 8
+
+                    AppButton {
+                        id: createCommitButton
+
+                        Layout.fillWidth: true
+                        text: qsTr("Commit")
+                        primary: true
+                        enabled: appController.stagedFileCount > 0
+                            && commitMessageTextArea.text.trim().length > 0
+                        onClicked: appController.CommitStagedFiles(commitMessageTextArea.text)
+                    }
+
+                    AppButton {
+                        id: pushRepositoryButton
+
+                        Layout.fillWidth: true
+                        text: qsTr("Push")
+                        enabled: appController.repositoryPath.length > 0
+                        onClicked: appController.PushRepository()
+                    }
                 }
 
                 Item {
