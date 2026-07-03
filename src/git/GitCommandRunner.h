@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 
@@ -24,5 +25,6 @@ public:
     [[nodiscard]] GitCommandResult Run(
         const QStringList &arguments,
         const QString &workingDirectory = QString(),
-        int timeoutMs = 10000) const;
+        int timeoutMs = 10000,
+        const QHash<QString, QString> &environmentOverrides = {}) const;
 };

@@ -39,6 +39,7 @@ private slots:
     void ClearStatusFileModel();
     void SelectStatusFilesInModel();
     void RunGitVersionCommand();
+    void RunGitCommandWithEnvironmentOverride();
     void FormatDiffForDisplay();
     void ReadStatusAndDiffFromRepository();
     void StageAndUnstageRepositoryFile();
@@ -166,6 +167,19 @@ void TestDesktopGitCore::RunGitVersionCommand()
 
     QVERIFY2(result.Success(), qPrintable(result.standardError));
     QVERIFY(result.standardOutput.startsWith(QStringLiteral("git version")));
+}
+
+void TestDesktopGitCore::RunGitCommandWithEnvironmentOverride()
+{
+    GitCommandRunner runner;
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("-c"),
+        QStringLiteral("alias.print-env=!sh -c 'printf %s \"$DESKTOPGIT_TEST_ENV\"'"),
+        QStringLiteral("print-env")
+    }, QString(), 10000, {{QStringLiteral("DESKTOPGIT_TEST_ENV"), QStringLiteral("from-env")}});
+
+    QVERIFY2(result.Success(), qPrintable(result.standardError));
+    QCOMPARE(result.standardOutput, QStringLiteral("from-env"));
 }
 
 void TestDesktopGitCore::FormatDiffForDisplay()

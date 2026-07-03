@@ -50,6 +50,15 @@ void AddStats(QHash<QString, DiffStat> *target, const QHash<QString, DiffStat> &
     }
 }
 
+bool IsGitHubSshPort22Failure(const GitCommandResult &result, const QString &remoteOutput)
+{
+    const QString output = result.standardOutput + QLatin1Char('\n') + result.standardError;
+    return remoteOutput.contains(QStringLiteral("git@github.com:"), Qt::CaseInsensitive)
+        && output.contains(QStringLiteral("port 22"), Qt::CaseInsensitive)
+        && (output.contains(QStringLiteral("Connection closed"), Qt::CaseInsensitive)
+            || output.contains(QStringLiteral("Could not read from remote repository"), Qt::CaseInsensitive));
+}
+
 }
 
 GitRepository::GitRepository(QObject *parent)
@@ -282,6 +291,26 @@ GitCommandResult GitRepository::Push() const
     GitCommandResult result = runner.Run({QStringLiteral("push")}, path, pushTimeoutMs);
     if (result.Success()) {
         return result;
+    }
+
+    const GitCommandResult remoteResult = runner.Run({
+        QStringLiteral("remote"),
+        QStringLiteral("-v")
+    }, path);
+
+    if (remoteResult.Success() && IsGitHubSshPort22Failure(result, remoteResult.standardOutput)) {
+        const GitCommandResult retryResult = runner.Run(
+            {QStringLiteral("push")},
+            path,
+            pushTimeoutMs,
+            {{QStringLiteral("GIT_SSH_COMMAND"),
+              QStringLiteral("ssh -o HostName=ssh.github.com -o Port=443")}});
+
+        if (retryResult.Success()) {
+            return retryResult;
+        }
+
+        return retryResult;
     }
 
     const QString output = result.standardOutput + QLatin1Char('\n') + result.standardError;

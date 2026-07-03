@@ -1,6 +1,7 @@
 #include "GitCommandRunner.h"
 
 #include <QProcess>
+#include <QProcessEnvironment>
 
 bool GitCommandResult::Success() const
 {
@@ -15,10 +16,20 @@ GitCommandRunner::GitCommandRunner(QObject *parent)
 GitCommandResult GitCommandRunner::Run(
     const QStringList &arguments,
     const QString &workingDirectory,
-    int timeoutMs) const
+    int timeoutMs,
+    const QHash<QString, QString> &environmentOverrides) const
 {
     QProcess process;
     GitCommandResult result;
+
+    if (!environmentOverrides.isEmpty()) {
+        QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+        for (auto iterator = environmentOverrides.cbegin(); iterator != environmentOverrides.cend(); ++iterator) {
+            environment.insert(iterator.key(), iterator.value());
+        }
+
+        process.setProcessEnvironment(environment);
+    }
 
     if (!workingDirectory.isEmpty()) {
         process.setWorkingDirectory(workingDirectory);
