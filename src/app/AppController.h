@@ -37,6 +37,8 @@ public:
     Q_INVOKABLE void OpenRepositoryPath(const QString &path);
     Q_INVOKABLE void RefreshRepository();
     Q_INVOKABLE void SelectStatusFile(const QString &path);
+    Q_INVOKABLE void StageSelectedFile();
+    Q_INVOKABLE void UnstageSelectedFile();
 
 signals:
     void GitAvailableChanged();

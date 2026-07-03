@@ -136,6 +136,42 @@ void AppController::SelectStatusFile(const QString &path)
     SetStatusMessage(QStringLiteral("Showing diff for %1.").arg(path));
 }
 
+void AppController::StageSelectedFile()
+{
+    if (selectedFilePath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a file first."));
+        return;
+    }
+
+    const QString filePath = selectedFilePath;
+    if (!gitRepository.StageFile(filePath)) {
+        SetStatusMessage(QStringLiteral("Failed to stage %1.").arg(filePath));
+        return;
+    }
+
+    RefreshRepository();
+    SelectStatusFile(filePath);
+    SetStatusMessage(QStringLiteral("Staged %1.").arg(filePath));
+}
+
+void AppController::UnstageSelectedFile()
+{
+    if (selectedFilePath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a file first."));
+        return;
+    }
+
+    const QString filePath = selectedFilePath;
+    if (!gitRepository.UnstageFile(filePath)) {
+        SetStatusMessage(QStringLiteral("Failed to unstage %1.").arg(filePath));
+        return;
+    }
+
+    RefreshRepository();
+    SelectStatusFile(filePath);
+    SetStatusMessage(QStringLiteral("Unstaged %1.").arg(filePath));
+}
+
 void AppController::SetGitAvailable(bool value)
 {
     if (gitAvailable == value) {

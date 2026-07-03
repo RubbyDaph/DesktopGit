@@ -21,6 +21,8 @@ public:
     QString CurrentBranch() const;
     QList<GitStatusFile> Status() const;
     QString Diff(const QString &filePath) const;
+    bool StageFile(const QString &filePath) const;
+    bool UnstageFile(const QString &filePath) const;
 
 private:
     QString path;

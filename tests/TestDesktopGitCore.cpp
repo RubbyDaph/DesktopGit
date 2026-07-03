@@ -39,6 +39,7 @@ private slots:
     void RunGitVersionCommand();
     void FormatDiffForDisplay();
     void ReadStatusAndDiffFromRepository();
+    void StageAndUnstageRepositoryFile();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -193,6 +194,66 @@ void TestDesktopGitCore::ReadStatusAndDiffFromRepository()
     QVERIFY(diff.contains(QStringLiteral("+new line")));
     QVERIFY(!diff.contains(QStringLiteral("diff --git")));
     QVERIFY(!diff.contains(QStringLiteral("@@")));
+}
+
+void TestDesktopGitCore::StageAndUnstageRepositoryFile()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.email"),
+        QStringLiteral("test@example.local")
+    }, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("config"),
+        QStringLiteral("user.name"),
+        QStringLiteral("DesktopGit Test")
+    }, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Initial commit")
+    }, repositoryPath).Success(), "git commit failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    QList<GitStatusFile> statusFiles = repository.Status();
+    QCOMPARE(statusFiles.size(), 1);
+    QCOMPARE(statusFiles.first().indexStatus, QString());
+    QCOMPARE(statusFiles.first().worktreeStatus, QStringLiteral("M"));
+
+    QVERIFY(repository.StageFile(QStringLiteral("file.txt")));
+
+    statusFiles = repository.Status();
+    QCOMPARE(statusFiles.size(), 1);
+    QCOMPARE(statusFiles.first().indexStatus, QStringLiteral("M"));
+    QCOMPARE(statusFiles.first().worktreeStatus, QString());
+    QCOMPARE(statusFiles.first().additions, 1);
+    QCOMPARE(statusFiles.first().deletions, 1);
+
+    const QString stagedDiff = repository.Diff(QStringLiteral("file.txt"));
+    QVERIFY(stagedDiff.contains(QStringLiteral("-old line")));
+    QVERIFY(stagedDiff.contains(QStringLiteral("+new line")));
+
+    QVERIFY(repository.UnstageFile(QStringLiteral("file.txt")));
+
+    statusFiles = repository.Status();
+    QCOMPARE(statusFiles.size(), 1);
+    QCOMPARE(statusFiles.first().indexStatus, QString());
+    QCOMPARE(statusFiles.first().worktreeStatus, QStringLiteral("M"));
 }
 
 QTEST_MAIN(TestDesktopGitCore)

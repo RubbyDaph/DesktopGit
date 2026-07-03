@@ -156,8 +156,8 @@ ApplicationWindow {
                 border.width: 1
                 clip: true
 
-                    ListView {
-                        id: repositoryFolderListView
+                ListView {
+                    id: repositoryFolderListView
 
                     anchors.fill: parent
                     anchors.margins: 1
@@ -529,6 +529,40 @@ ApplicationWindow {
                     color: window.textColor
                     font.pixelSize: 16
                     font.weight: Font.DemiBold
+                }
+
+                Label {
+                    id: selectedFileLabel
+
+                    Layout.fillWidth: true
+                    text: appController.selectedFilePath.length > 0
+                        ? appController.selectedFilePath
+                        : qsTr("No file selected")
+                    color: window.mutedTextColor
+                    elide: Text.ElideMiddle
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    AppButton {
+                        id: stageSelectedFileButton
+
+                        Layout.fillWidth: true
+                        text: qsTr("Stage")
+                        enabled: appController.selectedFilePath.length > 0
+                        onClicked: appController.StageSelectedFile()
+                    }
+
+                    AppButton {
+                        id: unstageSelectedFileButton
+
+                        Layout.fillWidth: true
+                        text: qsTr("Unstage")
+                        enabled: appController.selectedFilePath.length > 0
+                        onClicked: appController.UnstageSelectedFile()
+                    }
                 }
 
                 TextArea {

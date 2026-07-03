@@ -40,6 +40,16 @@ QHash<QString, DiffStat> ParseNumstat(const QString &output)
     return stats;
 }
 
+void AddStats(QHash<QString, DiffStat> *target, const QHash<QString, DiffStat> &source)
+{
+    for (auto iterator = source.cbegin(); iterator != source.cend(); ++iterator) {
+        DiffStat stat = target->value(iterator.key());
+        stat.additions += iterator.value().additions;
+        stat.deletions += iterator.value().deletions;
+        target->insert(iterator.key(), stat);
+    }
+}
+
 }
 
 GitRepository::GitRepository(QObject *parent)
@@ -106,16 +116,26 @@ QList<GitStatusFile> GitRepository::Status() const
 
     QList<GitStatusFile> files = GitStatusParser::Parse(result.standardOutput);
 
-    const GitCommandResult numstatResult = runner.Run({
+    const GitCommandResult unstagedNumstatResult = runner.Run({
         QStringLiteral("diff"),
         QStringLiteral("--numstat")
     }, path);
 
-    if (!numstatResult.Success()) {
-        return files;
+    QHash<QString, DiffStat> stats;
+    if (unstagedNumstatResult.Success()) {
+        AddStats(&stats, ParseNumstat(unstagedNumstatResult.standardOutput));
     }
 
-    const QHash<QString, DiffStat> stats = ParseNumstat(numstatResult.standardOutput);
+    const GitCommandResult stagedNumstatResult = runner.Run({
+        QStringLiteral("diff"),
+        QStringLiteral("--cached"),
+        QStringLiteral("--numstat")
+    }, path);
+
+    if (stagedNumstatResult.Success()) {
+        AddStats(&stats, ParseNumstat(stagedNumstatResult.standardOutput));
+    }
+
     for (GitStatusFile &file : files) {
         const DiffStat stat = stats.value(file.path);
         file.additions = stat.additions;
@@ -131,15 +151,61 @@ QString GitRepository::Diff(const QString &filePath) const
         return {};
     }
 
-    const GitCommandResult result = runner.Run({
+    const GitCommandResult unstagedResult = runner.Run({
         QStringLiteral("diff"),
         QStringLiteral("--"),
         filePath
     }, path);
 
-    if (!result.Success()) {
+    if (!unstagedResult.Success()) {
         return {};
     }
 
-    return GitDiffFormatter::FormatForDisplay(result.standardOutput);
+    if (!unstagedResult.standardOutput.isEmpty()) {
+        return GitDiffFormatter::FormatForDisplay(unstagedResult.standardOutput);
+    }
+
+    const GitCommandResult stagedResult = runner.Run({
+        QStringLiteral("diff"),
+        QStringLiteral("--cached"),
+        QStringLiteral("--"),
+        filePath
+    }, path);
+
+    if (!stagedResult.Success()) {
+        return {};
+    }
+
+    return GitDiffFormatter::FormatForDisplay(stagedResult.standardOutput);
+}
+
+bool GitRepository::StageFile(const QString &filePath) const
+{
+    if (path.isEmpty() || filePath.isEmpty()) {
+        return false;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("add"),
+        QStringLiteral("--"),
+        filePath
+    }, path);
+
+    return result.Success();
+}
+
+bool GitRepository::UnstageFile(const QString &filePath) const
+{
+    if (path.isEmpty() || filePath.isEmpty()) {
+        return false;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("restore"),
+        QStringLiteral("--staged"),
+        QStringLiteral("--"),
+        filePath
+    }, path);
+
+    return result.Success();
 }
