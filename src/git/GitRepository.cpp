@@ -101,6 +101,11 @@ int GitChangeSummary::LineChanges() const
     return additions + deletions;
 }
 
+int GitCommitFile::Changes() const
+{
+    return additions + deletions;
+}
+
 void GitRepository::SetPath(const QString &path)
 {
     this->path = path;
@@ -519,4 +524,138 @@ GitBranchSyncStatus GitRepository::BranchSyncStatus() const
     status.behind = behind;
     status.ahead = ahead;
     return status;
+}
+
+QList<GitCommitInfo> GitRepository::CommitHistory(int limit) const
+{
+    if (path.isEmpty() || limit <= 0) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("log"),
+        QStringLiteral("-n"),
+        QString::number(limit),
+        QStringLiteral("--date=iso-strict"),
+        QStringLiteral("--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%ad%x1e")
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    QList<GitCommitInfo> commits;
+    const QStringList records = result.standardOutput.split(QChar(0x1e), Qt::SkipEmptyParts);
+    commits.reserve(records.size());
+
+    for (const QString &record : records) {
+        const QStringList fields = record.split(QChar(0x1f));
+        if (fields.size() != 6) {
+            continue;
+        }
+
+        GitCommitInfo commit;
+        commit.hash = fields.at(0).trimmed();
+        commit.shortHash = fields.at(1).trimmed();
+        commit.subject = fields.at(2).trimmed();
+        commit.authorName = fields.at(3).trimmed();
+        commit.authorEmail = fields.at(4).trimmed();
+        commit.date = fields.at(5).trimmed();
+        commits.append(commit);
+    }
+
+    return commits;
+}
+
+QList<GitCommitFile> GitRepository::CommitFiles(const QString &commitHash) const
+{
+    if (path.isEmpty() || commitHash.trimmed().isEmpty()) {
+        return {};
+    }
+
+    const QString hash = commitHash.trimmed();
+    const GitCommandResult statusResult = runner.Run({
+        QStringLiteral("show"),
+        QStringLiteral("--format="),
+        QStringLiteral("--name-status"),
+        QStringLiteral("--no-renames"),
+        hash
+    }, path);
+
+    const GitCommandResult numstatResult = runner.Run({
+        QStringLiteral("show"),
+        QStringLiteral("--format="),
+        QStringLiteral("--numstat"),
+        QStringLiteral("--no-renames"),
+        hash
+    }, path);
+
+    if (!statusResult.Success() || !numstatResult.Success()) {
+        return {};
+    }
+
+    QHash<QString, QString> statuses;
+    const QStringList statusLines = statusResult.standardOutput.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (const QString &line : statusLines) {
+        const QStringList parts = line.split(QLatin1Char('\t'));
+        if (parts.size() < 2) {
+            continue;
+        }
+
+        statuses.insert(parts.at(1), parts.at(0));
+    }
+
+    QList<GitCommitFile> files;
+    const QStringList numstatLines = numstatResult.standardOutput.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    files.reserve(numstatLines.size());
+
+    for (const QString &line : numstatLines) {
+        const QStringList parts = line.split(QLatin1Char('\t'));
+        if (parts.size() < 3) {
+            continue;
+        }
+
+        GitCommitFile file;
+        file.path = parts.at(2);
+        file.status = statuses.value(file.path);
+
+        bool additionsOk = false;
+        bool deletionsOk = false;
+        const int additions = parts.at(0).toInt(&additionsOk);
+        const int deletions = parts.at(1).toInt(&deletionsOk);
+
+        if (additionsOk) {
+            file.additions = additions;
+        }
+
+        if (deletionsOk) {
+            file.deletions = deletions;
+        }
+
+        files.append(file);
+    }
+
+    return files;
+}
+
+QString GitRepository::CommitFileDiff(const QString &commitHash, const QString &filePath) const
+{
+    if (path.isEmpty() || commitHash.trimmed().isEmpty() || filePath.isEmpty()) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("show"),
+        QStringLiteral("--format="),
+        QStringLiteral("--no-ext-diff"),
+        commitHash.trimmed(),
+        QStringLiteral("--"),
+        filePath
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    return GitDiffFormatter::FormatForDisplay(result.standardOutput);
 }

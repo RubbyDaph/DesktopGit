@@ -23,6 +23,26 @@ struct GitBranchSyncStatus
     bool hasUpstream = false;
 };
 
+struct GitCommitInfo
+{
+    QString hash;
+    QString shortHash;
+    QString subject;
+    QString authorName;
+    QString authorEmail;
+    QString date;
+};
+
+struct GitCommitFile
+{
+    QString path;
+    QString status;
+    int additions = 0;
+    int deletions = 0;
+
+    [[nodiscard]] int Changes() const;
+};
+
 class GitRepository : public QObject
 {
     Q_OBJECT
@@ -52,6 +72,9 @@ public:
     GitCommandResult Fetch() const;
     GitCommandResult Pull() const;
     GitBranchSyncStatus BranchSyncStatus() const;
+    QList<GitCommitInfo> CommitHistory(int limit = 100) const;
+    QList<GitCommitFile> CommitFiles(const QString &commitHash) const;
+    QString CommitFileDiff(const QString &commitHash, const QString &filePath) const;
 
 private:
     QString path;

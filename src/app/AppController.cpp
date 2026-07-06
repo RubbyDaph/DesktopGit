@@ -132,6 +132,26 @@ bool AppController::PullInProgress() const
     return pullInProgress;
 }
 
+bool AppController::HistoryVisible() const
+{
+    return historyVisible;
+}
+
+QString AppController::SelectedCommitHash() const
+{
+    return selectedCommitHash;
+}
+
+QString AppController::SelectedCommitFilePath() const
+{
+    return selectedCommitFilePath;
+}
+
+QString AppController::SelectedCommitDiff() const
+{
+    return selectedCommitDiff;
+}
+
 QString AppController::CurrentDiff() const
 {
     return currentDiff;
@@ -140,6 +160,16 @@ QString AppController::CurrentDiff() const
 StatusFileModel *AppController::StatusFiles()
 {
     return &statusFileModel;
+}
+
+CommitHistoryModel *AppController::CommitHistory()
+{
+    return &commitHistoryModel;
+}
+
+CommitFileModel *AppController::CommitFiles()
+{
+    return &commitFileModel;
 }
 
 void AppController::CheckGitAvailable()
@@ -188,6 +218,10 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetHistoryVisible(false);
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Selected path is not a directory."));
@@ -196,6 +230,10 @@ void AppController::OpenRepositoryPath(const QString &path)
 
     SetRepositoryPath(path);
     gitRepository.SetPath(path);
+    commitHistoryModel.Clear();
+    commitFileModel.Clear();
+    ClearCommitSelection();
+    SetHistoryVisible(false);
     RefreshRepositoryConnectionState();
 
     if (!repositoryInitialized) {
@@ -204,6 +242,10 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetHistoryVisible(false);
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened. Repository is not initialized."));
@@ -216,6 +258,10 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetHistoryVisible(false);
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened, but it is not a Git work tree."));
@@ -243,6 +289,10 @@ void AppController::RefreshRepository()
 {
     if (repositoryPath.isEmpty()) {
         statusFileModel.Clear();
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetHistoryVisible(false);
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -254,6 +304,10 @@ void AppController::RefreshRepository()
     RefreshRepositoryConnectionState();
     if (!repositoryInitialized) {
         statusFileModel.Clear();
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetHistoryVisible(false);
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -481,6 +535,9 @@ void AppController::CommitStagedFiles(const QString &message)
 
     RefreshRepository();
     ClearFileSelection();
+    commitHistoryModel.Clear();
+    commitFileModel.Clear();
+    ClearCommitSelection();
     SetSelectedFilePath(QString());
     SetCurrentDiff(QString());
     SetStatusMessage(QStringLiteral("Commit created."));
@@ -718,6 +775,82 @@ bool AppController::ConnectRepository(const QString &remoteUrl)
     return true;
 }
 
+void AppController::OpenHistory()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    SetHistoryVisible(true);
+    RefreshCommitHistory();
+}
+
+void AppController::CloseHistory()
+{
+    SetHistoryVisible(false);
+}
+
+void AppController::RefreshCommitHistory()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        commitHistoryModel.Clear();
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    const QList<GitCommitInfo> commits = gitRepository.CommitHistory(100);
+    commitHistoryModel.SetCommits(commits);
+
+    if (commits.isEmpty()) {
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        SetStatusMessage(QStringLiteral("No commits yet."));
+        return;
+    }
+
+    if (!commitHistoryModel.ContainsHash(selectedCommitHash)) {
+        SelectCommit(commits.first().hash);
+    } else {
+        SelectCommit(selectedCommitHash);
+    }
+
+    SetStatusMessage(QStringLiteral("%1 commit(s) loaded.").arg(commits.size()));
+}
+
+void AppController::SelectCommit(const QString &hash)
+{
+    if (hash.trimmed().isEmpty() || !commitHistoryModel.ContainsHash(hash)) {
+        commitFileModel.Clear();
+        ClearCommitSelection();
+        return;
+    }
+
+    SetSelectedCommitHash(hash);
+    SetSelectedCommitFilePath(QString());
+    SetSelectedCommitDiff(QString());
+
+    const QList<GitCommitFile> files = gitRepository.CommitFiles(hash);
+    commitFileModel.SetFiles(files);
+
+    SetStatusMessage(QStringLiteral("%1 file(s) in selected commit.").arg(files.size()));
+}
+
+void AppController::SelectCommitFile(const QString &path)
+{
+    if (selectedCommitHash.isEmpty() || path.isEmpty() || !commitFileModel.ContainsPath(path)) {
+        SetSelectedCommitFilePath(QString());
+        SetSelectedCommitDiff(QString());
+        return;
+    }
+
+    SetSelectedCommitFilePath(path);
+    SetSelectedCommitDiff(gitRepository.CommitFileDiff(selectedCommitHash, path));
+    SetStatusMessage(QStringLiteral("Showing commit diff for %1.").arg(path));
+}
+
 void AppController::SetGitAvailable(bool value)
 {
     if (gitAvailable == value) {
@@ -922,4 +1055,51 @@ void AppController::SetPullInProgress(bool value)
 
     pullInProgress = value;
     emit PullInProgressChanged();
+}
+
+void AppController::SetHistoryVisible(bool value)
+{
+    if (historyVisible == value) {
+        return;
+    }
+
+    historyVisible = value;
+    emit HistoryVisibleChanged();
+}
+
+void AppController::SetSelectedCommitHash(const QString &value)
+{
+    if (selectedCommitHash == value) {
+        return;
+    }
+
+    selectedCommitHash = value;
+    emit SelectedCommitChanged();
+}
+
+void AppController::SetSelectedCommitFilePath(const QString &value)
+{
+    if (selectedCommitFilePath == value) {
+        return;
+    }
+
+    selectedCommitFilePath = value;
+    emit SelectedCommitFileChanged();
+}
+
+void AppController::SetSelectedCommitDiff(const QString &value)
+{
+    if (selectedCommitDiff == value) {
+        return;
+    }
+
+    selectedCommitDiff = value;
+    emit SelectedCommitDiffChanged();
+}
+
+void AppController::ClearCommitSelection()
+{
+    SetSelectedCommitHash(QString());
+    SetSelectedCommitFilePath(QString());
+    SetSelectedCommitDiff(QString());
 }

@@ -578,6 +578,18 @@ ApplicationWindow {
             }
 
             AppButton {
+                id: openHistoryButton
+
+                text: qsTr("History")
+                enabled: appController.repositoryPath.length > 0
+                    && appController.repositoryInitialized
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: appController.OpenHistory()
+            }
+
+            AppButton {
                 id: fetchRepositoryButton
 
                 text: qsTr("Fetch")
@@ -605,78 +617,83 @@ ApplicationWindow {
         }
     }
 
-    SplitView {
-        id: mainSplitView
+    StackLayout {
+        id: mainContentStack
 
         anchors.fill: parent
-        orientation: Qt.Horizontal
+        currentIndex: appController.historyVisible ? 1 : 0
 
-        Pane {
-            id: changesPane
+        SplitView {
+            id: mainSplitView
 
-            SplitView.preferredWidth: 300
-            SplitView.minimumWidth: 240
+            orientation: Qt.Horizontal
 
-            background: Rectangle {
-                color: window.panelColor
-                border.color: window.borderColor
-                border.width: 1
-            }
+            Pane {
+                id: changesPane
 
-            ColumnLayout {
-                id: changesLayout
+                SplitView.preferredWidth: 300
+                SplitView.minimumWidth: 240
 
-                anchors.fill: parent
-                spacing: 8
-
-                RowLayout {
-                    id: changesHeaderLayout
-
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Label {
-                        id: changesTitleLabel
-
-                        text: qsTr("Changes")
-                        color: window.textColor
-                        font.pixelSize: 16
-                        font.weight: Font.DemiBold
-                        Layout.fillWidth: true
-                    }
-
-                    AppButton {
-                        id: selectAllFilesButton
-
-                        text: qsTr("Select all")
-                        enabled: changedFilesListView.count > 0
-                        onClicked: appController.SelectAllFiles()
-                    }
-
-                    AppButton {
-                        id: clearFileSelectionButton
-
-                        text: qsTr("Clear")
-                        enabled: appController.selectedFileCount > 0
-                        onClicked: appController.ClearFileSelection()
-                    }
+                background: Rectangle {
+                    color: window.panelColor
+                    border.color: window.borderColor
+                    border.width: 1
                 }
 
-                ListView {
-                    id: changedFilesListView
+                ColumnLayout {
+                    id: changesLayout
 
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
+                    anchors.fill: parent
+                    spacing: 8
 
-                    model: appController.statusFileModel
+                    RowLayout {
+                        id: changesHeaderLayout
 
-                    delegate: ItemDelegate {
-                        id: statusFileDelegate
+                        Layout.fillWidth: true
+                        spacing: 8
 
-                        width: ListView.view.width
-                        highlighted: appController.selectedFilePath === model.path
-                        onClicked: appController.SelectStatusFile(model.path)
+                        Label {
+                            id: changesTitleLabel
+
+                            text: qsTr("Changes")
+                            color: window.textColor
+                            font.pixelSize: 16
+                            font.weight: Font.DemiBold
+                            Layout.fillWidth: true
+                        }
+
+                        AppButton {
+                            id: selectAllFilesButton
+
+                            text: qsTr("Select all")
+                            enabled: changedFilesListView.count > 0
+                            onClicked: appController.SelectAllFiles()
+                        }
+
+                        AppButton {
+                            id: clearFileSelectionButton
+
+                            text: qsTr("Clear")
+                            enabled: appController.selectedFileCount > 0
+                            onClicked: appController.ClearFileSelection()
+                        }
+                    }
+
+                    ListView {
+                        id: changedFilesListView
+
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+
+                        model: appController.statusFileModel
+
+                        delegate: ItemDelegate {
+                            id: statusFileDelegate
+
+                            width: ListView.view.width
+                            highlighted: appController.selectedFilePath === model.path
+                            onClicked: appController.SelectStatusFile(model.path)
 
                         background: Rectangle {
                             color: appController.selectedFilePath === model.path
@@ -1014,6 +1031,364 @@ ApplicationWindow {
                     text: appController.statusMessage
                     color: window.mutedTextColor
                     wrapMode: Text.WordWrap
+                }
+            }
+        }
+        }
+
+        Item {
+            id: historyPage
+
+            ColumnLayout {
+                id: historyLayout
+
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 10
+
+                RowLayout {
+                    id: historyToolbarLayout
+
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    AppButton {
+                        id: closeHistoryButton
+
+                        text: qsTr("Back")
+                        onClicked: appController.CloseHistory()
+                    }
+
+                    Label {
+                        id: historyTitleLabel
+
+                        text: qsTr("Commit History")
+                        color: window.textColor
+                        font.pixelSize: 18
+                        font.weight: Font.DemiBold
+                    }
+
+                    Label {
+                        id: historyRepositoryLabel
+
+                        text: appController.repositoryPath
+                        color: window.mutedTextColor
+                        elide: Text.ElideMiddle
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        id: refreshHistoryButton
+
+                        text: qsTr("Refresh")
+                        onClicked: appController.RefreshCommitHistory()
+                    }
+                }
+
+                SplitView {
+                    id: historySplitView
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    orientation: Qt.Horizontal
+
+                    Pane {
+                        id: commitHistoryPane
+
+                        SplitView.preferredWidth: 360
+                        SplitView.minimumWidth: 280
+
+                        background: Rectangle {
+                            color: window.panelColor
+                            border.color: window.borderColor
+                            border.width: 1
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 8
+
+                            Label {
+                                text: qsTr("Commits")
+                                color: window.textColor
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
+                            }
+
+                            ListView {
+                                id: commitHistoryListView
+
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                model: appController.commitHistoryModel
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                delegate: ItemDelegate {
+                                    id: commitHistoryDelegate
+
+                                    required property string hash
+                                    required property string shortHash
+                                    required property string subject
+                                    required property string authorName
+                                    required property string date
+
+                                    width: commitHistoryListView.width
+                                    highlighted: appController.selectedCommitHash === hash
+                                    onClicked: appController.SelectCommit(hash)
+
+                                    background: Rectangle {
+                                        color: commitHistoryDelegate.highlighted
+                                            ? "#333842"
+                                            : (commitHistoryDelegate.hovered ? window.panelRaisedColor : "transparent")
+                                        border.color: commitHistoryDelegate.highlighted ? window.accentColor : "transparent"
+                                        border.width: 1
+                                    }
+
+                                    contentItem: ColumnLayout {
+                                        spacing: 3
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+
+                                            Label {
+                                                text: shortHash
+                                                color: window.accentColor
+                                                font.family: "monospace"
+                                                font.pixelSize: 12
+                                            }
+
+                                            Label {
+                                                text: date
+                                                color: window.mutedTextColor
+                                                elide: Text.ElideRight
+                                                horizontalAlignment: Text.AlignRight
+                                                font.pixelSize: 11
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+
+                                        Label {
+                                            text: subject.length > 0 ? subject : qsTr("(no subject)")
+                                            color: window.textColor
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Label {
+                                            text: authorName
+                                            color: window.mutedTextColor
+                                            elide: Text.ElideRight
+                                            font.pixelSize: 12
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    visible: commitHistoryListView.count === 0
+                                    text: qsTr("No commits yet")
+                                    color: window.mutedTextColor
+                                }
+                            }
+                        }
+                    }
+
+                    Pane {
+                        id: commitFilesPane
+
+                        SplitView.preferredWidth: 320
+                        SplitView.minimumWidth: 260
+
+                        background: Rectangle {
+                            color: window.panelColor
+                            border.color: window.borderColor
+                            border.width: 1
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 8
+
+                            Label {
+                                text: qsTr("Files")
+                                color: window.textColor
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
+                            }
+
+                            ListView {
+                                id: commitFilesListView
+
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                model: appController.commitFileModel
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                delegate: ItemDelegate {
+                                    id: commitFileDelegate
+
+                                    required property string path
+                                    required property string status
+                                    required property int additions
+                                    required property int deletions
+                                    required property int changes
+
+                                    width: commitFilesListView.width
+                                    highlighted: appController.selectedCommitFilePath === path
+                                    onClicked: appController.SelectCommitFile(path)
+
+                                    background: Rectangle {
+                                        color: commitFileDelegate.highlighted
+                                            ? "#333842"
+                                            : (commitFileDelegate.hovered ? window.panelRaisedColor : "transparent")
+                                        border.color: commitFileDelegate.highlighted ? window.accentColor : "transparent"
+                                        border.width: 1
+                                    }
+
+                                    contentItem: RowLayout {
+                                        spacing: 8
+
+                                        Label {
+                                            text: status.length > 0 ? status : "?"
+                                            color: window.textColor
+                                            font.family: "monospace"
+                                            Layout.preferredWidth: 26
+                                        }
+
+                                        Label {
+                                            text: path
+                                            color: window.textColor
+                                            elide: Text.ElideMiddle
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Label {
+                                            text: "+" + additions
+                                            color: window.addedTextColor
+                                            visible: additions > 0
+                                            font.family: "monospace"
+                                        }
+
+                                        Label {
+                                            text: "-" + deletions
+                                            color: window.removedTextColor
+                                            visible: deletions > 0
+                                            font.family: "monospace"
+                                        }
+
+                                        Label {
+                                            text: changes
+                                            color: window.mutedTextColor
+                                            visible: changes > 0
+                                            font.family: "monospace"
+                                        }
+                                    }
+                                }
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    visible: commitFilesListView.count === 0
+                                    text: appController.selectedCommitHash.length > 0
+                                        ? qsTr("No files")
+                                        : qsTr("Select a commit")
+                                    color: window.mutedTextColor
+                                }
+                            }
+                        }
+                    }
+
+                    Pane {
+                        id: commitDiffPane
+
+                        SplitView.fillWidth: true
+
+                        background: Rectangle {
+                            color: window.panelColor
+                            border.color: window.borderColor
+                            border.width: 1
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 8
+
+                            Label {
+                                text: appController.selectedCommitFilePath.length > 0
+                                    ? appController.selectedCommitFilePath
+                                    : qsTr("Commit Diff")
+                                color: window.textColor
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                color: window.panelRaisedColor
+                                border.color: window.borderColor
+                                border.width: 1
+                                clip: true
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    visible: appController.selectedCommitDiff.length === 0
+                                    text: appController.selectedCommitFilePath.length > 0
+                                        ? qsTr("No diff for this file")
+                                        : qsTr("Select a file from this commit")
+                                    color: window.mutedTextColor
+                                }
+
+                                ListView {
+                                    id: commitDiffLinesListView
+
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    visible: appController.selectedCommitDiff.length > 0
+                                    clip: true
+                                    boundsBehavior: Flickable.StopAtBounds
+                                    model: appController.selectedCommitDiff.length > 0
+                                        ? appController.selectedCommitDiff.split("\n")
+                                        : []
+
+                                    delegate: Rectangle {
+                                        required property string modelData
+
+                                        width: commitDiffLinesListView.width
+                                        height: commitDiffLineText.implicitHeight + 6
+                                        color: modelData.startsWith("+")
+                                            ? window.addedLineColor
+                                            : (modelData.startsWith("-")
+                                                ? window.removedLineColor
+                                                : "transparent")
+
+                                        Text {
+                                            id: commitDiffLineText
+
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 10
+                                            text: modelData.length > 0 ? modelData : " "
+                                            color: modelData.startsWith("+")
+                                                ? window.addedTextColor
+                                                : (modelData.startsWith("-")
+                                                    ? window.removedTextColor
+                                                    : window.textColor)
+                                            font.family: "monospace"
+                                            font.pixelSize: 13
+                                            elide: Text.ElideNone
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

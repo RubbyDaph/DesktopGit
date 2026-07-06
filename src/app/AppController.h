@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CommitFileModel.h"
+#include "CommitHistoryModel.h"
 #include "GitCommandRunner.h"
 #include "GitRepository.h"
 #include "StatusFileModel.h"
@@ -33,8 +35,14 @@ class AppController : public QObject
     Q_PROPERTY(bool pushInProgress READ PushInProgress NOTIFY PushInProgressChanged)
     Q_PROPERTY(bool fetchInProgress READ FetchInProgress NOTIFY FetchInProgressChanged)
     Q_PROPERTY(bool pullInProgress READ PullInProgress NOTIFY PullInProgressChanged)
+    Q_PROPERTY(bool historyVisible READ HistoryVisible NOTIFY HistoryVisibleChanged)
+    Q_PROPERTY(QString selectedCommitHash READ SelectedCommitHash NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitFilePath READ SelectedCommitFilePath NOTIFY SelectedCommitFileChanged)
+    Q_PROPERTY(QString selectedCommitDiff READ SelectedCommitDiff NOTIFY SelectedCommitDiffChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
+    Q_PROPERTY(CommitHistoryModel* commitHistoryModel READ CommitHistory CONSTANT)
+    Q_PROPERTY(CommitFileModel* commitFileModel READ CommitFiles CONSTANT)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -61,8 +69,14 @@ public:
     [[nodiscard]] bool PushInProgress() const;
     [[nodiscard]] bool FetchInProgress() const;
     [[nodiscard]] bool PullInProgress() const;
+    [[nodiscard]] bool HistoryVisible() const;
+    [[nodiscard]] QString SelectedCommitHash() const;
+    [[nodiscard]] QString SelectedCommitFilePath() const;
+    [[nodiscard]] QString SelectedCommitDiff() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
+    [[nodiscard]] class CommitHistoryModel *CommitHistory();
+    [[nodiscard]] class CommitFileModel *CommitFiles();
 
     Q_INVOKABLE void CheckGitAvailable();
     Q_INVOKABLE void OpenRepository(const QUrl &repositoryUrl);
@@ -82,6 +96,11 @@ public:
     Q_INVOKABLE void FetchRepository();
     Q_INVOKABLE void PullRepository();
     Q_INVOKABLE bool ConnectRepository(const QString &remoteUrl);
+    Q_INVOKABLE void OpenHistory();
+    Q_INVOKABLE void CloseHistory();
+    Q_INVOKABLE void RefreshCommitHistory();
+    Q_INVOKABLE void SelectCommit(const QString &hash);
+    Q_INVOKABLE void SelectCommitFile(const QString &path);
     Q_INVOKABLE void ClosePushSummary();
 
 signals:
@@ -100,6 +119,10 @@ signals:
     void PushInProgressChanged();
     void FetchInProgressChanged();
     void PullInProgressChanged();
+    void HistoryVisibleChanged();
+    void SelectedCommitChanged();
+    void SelectedCommitFileChanged();
+    void SelectedCommitDiffChanged();
     void CurrentDiffChanged();
     void commitCreated();
     void pushCompleted();
@@ -123,10 +146,17 @@ private:
     void SetPushInProgress(bool value);
     void SetFetchInProgress(bool value);
     void SetPullInProgress(bool value);
+    void SetHistoryVisible(bool value);
+    void SetSelectedCommitHash(const QString &value);
+    void SetSelectedCommitFilePath(const QString &value);
+    void SetSelectedCommitDiff(const QString &value);
+    void ClearCommitSelection();
 
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
     class StatusFileModel statusFileModel;
+    class CommitHistoryModel commitHistoryModel;
+    class CommitFileModel commitFileModel;
     bool gitAvailable = false;
     QString gitVersion;
     QString statusMessage;
@@ -148,4 +178,8 @@ private:
     bool pushInProgress = false;
     bool fetchInProgress = false;
     bool pullInProgress = false;
+    bool historyVisible = false;
+    QString selectedCommitHash;
+    QString selectedCommitFilePath;
+    QString selectedCommitDiff;
 };

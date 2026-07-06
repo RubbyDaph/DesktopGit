@@ -1,4 +1,6 @@
 #include "AppController.h"
+#include "CommitFileModel.h"
+#include "CommitHistoryModel.h"
 #include "GitCommandRunner.h"
 #include "GitDiffFormatter.h"
 #include "GitRepository.h"
@@ -54,6 +56,11 @@ private slots:
     void InitializeAndConnectRepository();
     void OpenPlainFolderAndConnectFromController();
     void OpenRepositoryWithExistingOriginFromController();
+    void ReadCommitHistoryAndCommitDiff();
+    void PopulateCommitHistoryModel();
+    void PopulateCommitFileModel();
+    void ReadCommitHistoryFromController();
+    void OpenHistoryForEmptyAndPlainRepositories();
     void FormatDiffForDisplay();
     void ReadStatusAndDiffFromRepository();
     void StageAndUnstageRepositoryFile();
@@ -309,6 +316,183 @@ void TestDesktopGitCore::OpenRepositoryWithExistingOriginFromController()
 
     QVERIFY(controller.ConnectRepository(QStringLiteral("https://github.com/user/ignored")));
     QCOMPARE(controller.RemoteUrl(), remotePath);
+}
+
+void TestDesktopGitCore::ReadCommitHistoryAndCommitDiff()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString firstFilePath = QDir(repositoryPath).filePath(QStringLiteral("first.txt"));
+    QVERIFY(WriteTextFile(firstFilePath, QStringLiteral("first line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("first.txt")}, repositoryPath).Success(), "git add first failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit first failed");
+
+    const QString secondFilePath = QDir(repositoryPath).filePath(QStringLiteral("second.txt"));
+    QVERIFY(WriteTextFile(secondFilePath, QStringLiteral("second line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("second.txt")}, repositoryPath).Success(), "git add second failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Add second file")}, repositoryPath).Success(), "git commit second failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const QList<GitCommitInfo> commits = repository.CommitHistory(1);
+    QCOMPARE(commits.size(), 1);
+    QCOMPARE(commits.first().subject, QStringLiteral("Add second file"));
+    QCOMPARE(commits.first().authorName, QStringLiteral("DesktopGit Test"));
+    QCOMPARE(commits.first().authorEmail, QStringLiteral("test@example.local"));
+    QVERIFY(!commits.first().hash.isEmpty());
+    QVERIFY(!commits.first().shortHash.isEmpty());
+    QVERIFY(!commits.first().date.isEmpty());
+
+    const QList<GitCommitFile> files = repository.CommitFiles(commits.first().hash);
+    QCOMPARE(files.size(), 1);
+    QCOMPARE(files.first().path, QStringLiteral("second.txt"));
+    QCOMPARE(files.first().status, QStringLiteral("A"));
+    QCOMPARE(files.first().additions, 1);
+    QCOMPARE(files.first().deletions, 0);
+    QCOMPARE(files.first().Changes(), 1);
+
+    const QString diff = repository.CommitFileDiff(commits.first().hash, QStringLiteral("second.txt"));
+    QVERIFY(diff.contains(QStringLiteral("+second line")));
+    QVERIFY(!diff.contains(QStringLiteral("diff --git")));
+}
+
+void TestDesktopGitCore::PopulateCommitHistoryModel()
+{
+    CommitHistoryModel model;
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    GitCommitInfo commit;
+    commit.hash = QStringLiteral("abcdef");
+    commit.shortHash = QStringLiteral("abcdef");
+    commit.subject = QStringLiteral("Subject");
+    commit.authorName = QStringLiteral("Author");
+    commit.authorEmail = QStringLiteral("author@example.local");
+    commit.date = QStringLiteral("2026-07-07T12:00:00+03:00");
+
+    model.SetCommits({commit});
+
+    QCOMPARE(resetSpy.count(), 1);
+    QCOMPARE(model.rowCount(), 1);
+    QVERIFY(model.ContainsHash(QStringLiteral("abcdef")));
+    QVERIFY(!model.ContainsHash(QStringLiteral("missing")));
+
+    const QModelIndex index = model.index(0, 0);
+    QCOMPARE(model.data(index, CommitHistoryModel::HashRole).toString(), QStringLiteral("abcdef"));
+    QCOMPARE(model.data(index, CommitHistoryModel::ShortHashRole).toString(), QStringLiteral("abcdef"));
+    QCOMPARE(model.data(index, CommitHistoryModel::SubjectRole).toString(), QStringLiteral("Subject"));
+    QCOMPARE(model.data(index, CommitHistoryModel::AuthorNameRole).toString(), QStringLiteral("Author"));
+    QCOMPARE(model.data(index, CommitHistoryModel::AuthorEmailRole).toString(), QStringLiteral("author@example.local"));
+    QCOMPARE(model.data(index, CommitHistoryModel::DateRole).toString(), QStringLiteral("2026-07-07T12:00:00+03:00"));
+
+    model.Clear();
+    QCOMPARE(model.rowCount(), 0);
+}
+
+void TestDesktopGitCore::PopulateCommitFileModel()
+{
+    CommitFileModel model;
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    GitCommitFile file;
+    file.path = QStringLiteral("src/main.cpp");
+    file.status = QStringLiteral("M");
+    file.additions = 3;
+    file.deletions = 2;
+
+    model.SetFiles({file});
+
+    QCOMPARE(resetSpy.count(), 1);
+    QCOMPARE(model.rowCount(), 1);
+    QVERIFY(model.ContainsPath(QStringLiteral("src/main.cpp")));
+    QVERIFY(!model.ContainsPath(QStringLiteral("missing.cpp")));
+
+    const QModelIndex index = model.index(0, 0);
+    QCOMPARE(model.data(index, CommitFileModel::PathRole).toString(), QStringLiteral("src/main.cpp"));
+    QCOMPARE(model.data(index, CommitFileModel::StatusRole).toString(), QStringLiteral("M"));
+    QCOMPARE(model.data(index, CommitFileModel::AdditionsRole).toInt(), 3);
+    QCOMPARE(model.data(index, CommitFileModel::DeletionsRole).toInt(), 2);
+    QCOMPARE(model.data(index, CommitFileModel::ChangesRole).toInt(), 5);
+
+    model.Clear();
+    QCOMPARE(model.rowCount(), 0);
+}
+
+void TestDesktopGitCore::ReadCommitHistoryFromController()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+
+    const QString repositoryPath = temporaryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add update failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Update file")}, repositoryPath).Success(), "git commit update failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+    controller.OpenHistory();
+
+    QCOMPARE(controller.HistoryVisible(), true);
+    QCOMPARE(controller.CommitHistory()->rowCount(), 2);
+    QVERIFY(!controller.SelectedCommitHash().isEmpty());
+    QCOMPARE(controller.CommitFiles()->rowCount(), 1);
+
+    const QModelIndex commitIndex = controller.CommitHistory()->index(0, 0);
+    QCOMPARE(controller.CommitHistory()->data(commitIndex, CommitHistoryModel::SubjectRole).toString(), QStringLiteral("Update file"));
+
+    controller.SelectCommitFile(QStringLiteral("file.txt"));
+    QCOMPARE(controller.SelectedCommitFilePath(), QStringLiteral("file.txt"));
+    QVERIFY(controller.SelectedCommitDiff().contains(QStringLiteral("+new line")));
+
+    controller.CloseHistory();
+    QCOMPARE(controller.HistoryVisible(), false);
+}
+
+void TestDesktopGitCore::OpenHistoryForEmptyAndPlainRepositories()
+{
+    QTemporaryDir plainDirectory;
+    QVERIFY(plainDirectory.isValid());
+
+    AppController plainController;
+    plainController.OpenRepositoryPath(plainDirectory.path());
+    plainController.OpenHistory();
+
+    QCOMPARE(plainController.HistoryVisible(), false);
+    QCOMPARE(plainController.CommitHistory()->rowCount(), 0);
+
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    GitCommandRunner runner;
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryDirectory.path()).Success(), "git init failed");
+
+    AppController emptyRepositoryController;
+    emptyRepositoryController.OpenRepositoryPath(repositoryDirectory.path());
+    emptyRepositoryController.OpenHistory();
+
+    QCOMPARE(emptyRepositoryController.HistoryVisible(), true);
+    QCOMPARE(emptyRepositoryController.CommitHistory()->rowCount(), 0);
+    QCOMPARE(emptyRepositoryController.CommitFiles()->rowCount(), 0);
+    QCOMPARE(emptyRepositoryController.StatusMessage(), QStringLiteral("No commits yet."));
 }
 
 void TestDesktopGitCore::FormatDiffForDisplay()
