@@ -45,6 +45,26 @@ QString AppController::CurrentBranch() const
     return currentBranch;
 }
 
+int AppController::AheadCount() const
+{
+    return aheadCount;
+}
+
+int AppController::BehindCount() const
+{
+    return behindCount;
+}
+
+bool AppController::HasUpstream() const
+{
+    return hasUpstream;
+}
+
+QString AppController::SyncStatusText() const
+{
+    return syncStatusText;
+}
+
 QString AppController::SelectedFilePath() const
 {
     return selectedFilePath;
@@ -132,6 +152,7 @@ void AppController::OpenRepositoryPath(const QString &path)
     if (!gitRepository.IsValid()) {
         SetRepositoryPath(QString());
         SetCurrentBranch(QString());
+        ClearBranchSyncStatus();
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
@@ -143,6 +164,7 @@ void AppController::OpenRepositoryPath(const QString &path)
 
     SetRepositoryPath(path);
     SetCurrentBranch(gitRepository.CurrentBranch());
+    RefreshBranchSyncStatus();
     RefreshRepository();
 
     if (currentBranch.isEmpty()) {
@@ -171,6 +193,7 @@ void AppController::RefreshRepository()
     emit StagedFileCountChanged();
 
     SetCurrentBranch(gitRepository.CurrentBranch());
+    RefreshBranchSyncStatus();
     SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
 }
 
@@ -400,6 +423,7 @@ void AppController::PushRepository()
 
         if (repositoryPath == pushedRepositoryPath) {
             RefreshRepository();
+            RefreshBranchSyncStatus();
         }
         SetStatusMessage(QStringLiteral("Push completed."));
         SetPushSummaryVisible(true);
@@ -461,6 +485,7 @@ void AppController::FetchRepository()
 
         if (repositoryPath == fetchedRepositoryPath) {
             RefreshRepository();
+            RefreshBranchSyncStatus();
         }
 
         SetStatusMessage(QStringLiteral("Fetch completed."));
@@ -513,6 +538,7 @@ void AppController::PullRepository()
 
         if (repositoryPath == pulledRepositoryPath) {
             RefreshRepository();
+            RefreshBranchSyncStatus();
         }
 
         SetStatusMessage(QStringLiteral("Pull completed."));
@@ -574,6 +600,58 @@ void AppController::SetCurrentBranch(const QString &value)
 
     currentBranch = value;
     emit CurrentBranchChanged();
+}
+
+void AppController::SetBranchSyncStatus(const GitBranchSyncStatus &status)
+{
+    QString nextSyncStatusText;
+    if (!status.hasUpstream) {
+        nextSyncStatusText = QStringLiteral("no upstream");
+    } else if (status.ahead > 0 && status.behind > 0) {
+        nextSyncStatusText = QStringLiteral("ahead %1 / behind %2").arg(status.ahead).arg(status.behind);
+    } else if (status.ahead > 0) {
+        nextSyncStatusText = QStringLiteral("ahead %1").arg(status.ahead);
+    } else if (status.behind > 0) {
+        nextSyncStatusText = QStringLiteral("behind %1").arg(status.behind);
+    } else {
+        nextSyncStatusText = QStringLiteral("synced");
+    }
+
+    if (aheadCount == status.ahead
+        && behindCount == status.behind
+        && hasUpstream == status.hasUpstream
+        && syncStatusText == nextSyncStatusText) {
+        return;
+    }
+
+    aheadCount = status.ahead;
+    behindCount = status.behind;
+    hasUpstream = status.hasUpstream;
+    syncStatusText = nextSyncStatusText;
+    emit BranchSyncStatusChanged();
+}
+
+void AppController::ClearBranchSyncStatus()
+{
+    if (aheadCount == 0 && behindCount == 0 && !hasUpstream && syncStatusText.isEmpty()) {
+        return;
+    }
+
+    aheadCount = 0;
+    behindCount = 0;
+    hasUpstream = false;
+    syncStatusText = QString();
+    emit BranchSyncStatusChanged();
+}
+
+void AppController::RefreshBranchSyncStatus()
+{
+    if (repositoryPath.isEmpty() || currentBranch.isEmpty()) {
+        ClearBranchSyncStatus();
+        return;
+    }
+
+    SetBranchSyncStatus(gitRepository.BranchSyncStatus());
 }
 
 void AppController::SetSelectedFilePath(const QString &value)

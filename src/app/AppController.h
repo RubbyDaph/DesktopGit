@@ -16,6 +16,10 @@ class AppController : public QObject
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString repositoryPath READ RepositoryPath NOTIFY RepositoryPathChanged)
     Q_PROPERTY(QString currentBranch READ CurrentBranch NOTIFY CurrentBranchChanged)
+    Q_PROPERTY(int aheadCount READ AheadCount NOTIFY BranchSyncStatusChanged)
+    Q_PROPERTY(int behindCount READ BehindCount NOTIFY BranchSyncStatusChanged)
+    Q_PROPERTY(bool hasUpstream READ HasUpstream NOTIFY BranchSyncStatusChanged)
+    Q_PROPERTY(QString syncStatusText READ SyncStatusText NOTIFY BranchSyncStatusChanged)
     Q_PROPERTY(QString selectedFilePath READ SelectedFilePath NOTIFY SelectedFilePathChanged)
     Q_PROPERTY(int selectedFileCount READ SelectedFileCount NOTIFY SelectedFilesChanged)
     Q_PROPERTY(int stagedFileCount READ StagedFileCount NOTIFY StagedFileCountChanged)
@@ -36,6 +40,10 @@ public:
     [[nodiscard]] QString StatusMessage() const;
     [[nodiscard]] QString RepositoryPath() const;
     [[nodiscard]] QString CurrentBranch() const;
+    [[nodiscard]] int AheadCount() const;
+    [[nodiscard]] int BehindCount() const;
+    [[nodiscard]] bool HasUpstream() const;
+    [[nodiscard]] QString SyncStatusText() const;
     [[nodiscard]] QString SelectedFilePath() const;
     [[nodiscard]] int SelectedFileCount() const;
     [[nodiscard]] int StagedFileCount() const;
@@ -72,6 +80,7 @@ signals:
     void StatusMessageChanged();
     void RepositoryPathChanged();
     void CurrentBranchChanged();
+    void BranchSyncStatusChanged();
     void SelectedFilePathChanged();
     void SelectedFilesChanged();
     void StagedFileCountChanged();
@@ -92,6 +101,9 @@ private:
     void SetStatusMessage(const QString &value);
     void SetRepositoryPath(const QString &value);
     void SetCurrentBranch(const QString &value);
+    void SetBranchSyncStatus(const GitBranchSyncStatus &status);
+    void ClearBranchSyncStatus();
+    void RefreshBranchSyncStatus();
     void SetSelectedFilePath(const QString &value);
     void SetCurrentDiff(const QString &value);
     void SetPushSummaryVisible(bool value);
@@ -107,6 +119,10 @@ private:
     QString statusMessage;
     QString repositoryPath;
     QString currentBranch;
+    int aheadCount = 0;
+    int behindCount = 0;
+    bool hasUpstream = false;
+    QString syncStatusText;
     QString selectedFilePath;
     QString currentDiff;
     int lastPushFilesChanged = 0;

@@ -390,3 +390,41 @@ GitCommandResult GitRepository::Pull() const
         {QStringLiteral("pull"), QStringLiteral("--ff-only")},
         remoteOperationTimeoutMs);
 }
+
+GitBranchSyncStatus GitRepository::BranchSyncStatus() const
+{
+    GitBranchSyncStatus status;
+    if (path.isEmpty()) {
+        return status;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("rev-list"),
+        QStringLiteral("--left-right"),
+        QStringLiteral("--count"),
+        QStringLiteral("@{u}...HEAD")
+    }, path);
+
+    if (!result.Success()) {
+        return status;
+    }
+
+    const QStringList parts = result.standardOutput.simplified().split(QLatin1Char(' '));
+    if (parts.size() != 2) {
+        return status;
+    }
+
+    bool behindOk = false;
+    bool aheadOk = false;
+    const int behind = parts.at(0).toInt(&behindOk);
+    const int ahead = parts.at(1).toInt(&aheadOk);
+
+    if (!behindOk || !aheadOk) {
+        return status;
+    }
+
+    status.hasUpstream = true;
+    status.behind = behind;
+    status.ahead = ahead;
+    return status;
+}

@@ -62,6 +62,7 @@ private slots:
     void FetchRepositoryChanges();
     void PullRepositoryChanges();
     void FetchAndPullRepositoryFromController();
+    void ReadBranchSyncStatus();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -728,6 +729,10 @@ void TestDesktopGitCore::PushRepositoryFromController()
 
     QCOMPARE(commitCreatedSpy.count(), 1);
     QCOMPARE(controller.StatusFiles()->rowCount(), 0);
+    QCOMPARE(controller.HasUpstream(), true);
+    QCOMPARE(controller.AheadCount(), 1);
+    QCOMPARE(controller.BehindCount(), 0);
+    QCOMPARE(controller.SyncStatusText(), QStringLiteral("ahead 1"));
 
     controller.PushRepository();
 
@@ -739,6 +744,9 @@ void TestDesktopGitCore::PushRepositoryFromController()
     QCOMPARE(controller.LastPushFilesChanged(), 1);
     QCOMPARE(controller.LastPushLineChanges(), 2);
     QCOMPARE(controller.PushSummaryVisible(), true);
+    QCOMPARE(controller.AheadCount(), 0);
+    QCOMPARE(controller.BehindCount(), 0);
+    QCOMPARE(controller.SyncStatusText(), QStringLiteral("synced"));
     QCOMPARE(controller.StatusMessage(), QStringLiteral("Push completed."));
 
     controller.ClosePushSummary();
@@ -915,6 +923,10 @@ void TestDesktopGitCore::FetchAndPullRepositoryFromController()
     QSignalSpy pullCompletedSpy(&controller, &AppController::pullCompleted);
 
     controller.OpenRepositoryPath(repositoryPath);
+    QCOMPARE(controller.HasUpstream(), true);
+    QCOMPARE(controller.AheadCount(), 0);
+    QCOMPARE(controller.BehindCount(), 0);
+    QCOMPARE(controller.SyncStatusText(), QStringLiteral("synced"));
 
     controller.FetchRepository();
     QCOMPARE(controller.FetchInProgress(), true);
@@ -922,6 +934,9 @@ void TestDesktopGitCore::FetchAndPullRepositoryFromController()
     QVERIFY(fetchCompletedSpy.wait(5000));
     QCOMPARE(controller.FetchInProgress(), false);
     QCOMPARE(controller.StatusMessage(), QStringLiteral("Fetch completed."));
+    QCOMPARE(controller.AheadCount(), 0);
+    QCOMPARE(controller.BehindCount(), 1);
+    QCOMPARE(controller.SyncStatusText(), QStringLiteral("behind 1"));
     QCOMPARE(ReadTextFile(filePath), QStringLiteral("old line\n"));
 
     controller.PullRepository();
@@ -930,7 +945,90 @@ void TestDesktopGitCore::FetchAndPullRepositoryFromController()
     QVERIFY(pullCompletedSpy.wait(5000));
     QCOMPARE(controller.PullInProgress(), false);
     QCOMPARE(controller.StatusMessage(), QStringLiteral("Pull completed."));
+    QCOMPARE(controller.AheadCount(), 0);
+    QCOMPARE(controller.BehindCount(), 0);
+    QCOMPARE(controller.SyncStatusText(), QStringLiteral("synced"));
     QCOMPARE(ReadTextFile(filePath), QStringLiteral("remote line\n"));
+}
+
+void TestDesktopGitCore::ReadBranchSyncStatus()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir workspaceDirectory;
+    QVERIFY(workspaceDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString collaboratorPath = QDir(workspaceDirectory.path()).filePath(QStringLiteral("collaborator"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    GitBranchSyncStatus syncStatus = repository.BranchSyncStatus();
+    QCOMPARE(syncStatus.hasUpstream, false);
+    QCOMPARE(syncStatus.ahead, 0);
+    QCOMPARE(syncStatus.behind, 0);
+
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, repositoryPath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, repositoryPath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), branchName}, repositoryPath).Success(), "git push -u failed");
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, repositoryPath).Success(), "git symbolic-ref failed");
+
+    syncStatus = repository.BranchSyncStatus();
+    QCOMPARE(syncStatus.hasUpstream, true);
+    QCOMPARE(syncStatus.ahead, 0);
+    QCOMPARE(syncStatus.behind, 0);
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("local line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add local failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Local update")}, repositoryPath).Success(), "git commit local failed");
+
+    syncStatus = repository.BranchSyncStatus();
+    QCOMPARE(syncStatus.hasUpstream, true);
+    QCOMPARE(syncStatus.ahead, 1);
+    QCOMPARE(syncStatus.behind, 0);
+
+    QVERIFY2(runner.Run({QStringLiteral("clone"), remotePath, collaboratorPath}, workspaceDirectory.path()).Success(), "git clone failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, collaboratorPath).Success(), "collaborator git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Collaborator")}, collaboratorPath).Success(), "collaborator git config user.name failed");
+    QVERIFY(WriteTextFile(QDir(collaboratorPath).filePath(QStringLiteral("remote.txt")), QStringLiteral("remote line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("remote.txt")}, collaboratorPath).Success(), "collaborator git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Remote update")}, collaboratorPath).Success(), "collaborator git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("push")}, collaboratorPath).Success(), "collaborator git push failed");
+
+    QVERIFY(repository.Fetch().Success());
+
+    syncStatus = repository.BranchSyncStatus();
+    QCOMPARE(syncStatus.hasUpstream, true);
+    QCOMPARE(syncStatus.ahead, 1);
+    QCOMPARE(syncStatus.behind, 1);
+
+    QVERIFY2(runner.Run({QStringLiteral("reset"), QStringLiteral("--hard"), QStringLiteral("origin/") + branchName}, repositoryPath).Success(), "git reset failed");
+
+    syncStatus = repository.BranchSyncStatus();
+    QCOMPARE(syncStatus.hasUpstream, true);
+    QCOMPARE(syncStatus.ahead, 0);
+    QCOMPARE(syncStatus.behind, 0);
 }
 
 QTEST_MAIN(TestDesktopGitCore)

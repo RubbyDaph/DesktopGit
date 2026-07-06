@@ -16,6 +16,13 @@ struct GitChangeSummary
     [[nodiscard]] int LineChanges() const;
 };
 
+struct GitBranchSyncStatus
+{
+    int ahead = 0;
+    int behind = 0;
+    bool hasUpstream = false;
+};
+
 class GitRepository : public QObject
 {
     Q_OBJECT
@@ -37,6 +44,7 @@ public:
     GitCommandResult Push() const;
     GitCommandResult Fetch() const;
     GitCommandResult Pull() const;
+    GitBranchSyncStatus BranchSyncStatus() const;
 
 private:
     QString path;

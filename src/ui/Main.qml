@@ -375,6 +375,41 @@ ApplicationWindow {
                 Layout.fillWidth: true
             }
 
+            Rectangle {
+                id: branchSyncStatusBadge
+
+                visible: appController.repositoryPath.length > 0
+                    && appController.syncStatusText.length > 0
+                color: appController.hasUpstream
+                    ? (appController.aheadCount === 0 && appController.behindCount === 0
+                        ? "#243528"
+                        : "#353222")
+                    : "#34272a"
+                border.color: appController.hasUpstream
+                    ? (appController.aheadCount === 0 && appController.behindCount === 0
+                        ? "#3d6f49"
+                        : "#776a32")
+                    : "#6b3c45"
+                border.width: 1
+                radius: 6
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: branchSyncStatusLabel.implicitWidth + 20
+
+                Label {
+                    id: branchSyncStatusLabel
+
+                    anchors.centerIn: parent
+                    text: appController.syncStatusText
+                    color: appController.hasUpstream
+                        ? (appController.aheadCount === 0 && appController.behindCount === 0
+                            ? window.addedTextColor
+                            : "#e4d58a")
+                        : window.removedTextColor
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                }
+            }
+
             AppButton {
                 id: openRepositoryButton
 
