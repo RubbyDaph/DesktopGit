@@ -170,6 +170,7 @@ ApplicationWindow {
 
                         required property string fileName
                         required property url fileUrl
+                        readonly property bool gitFolder: appController.IsRepositoryFolder(fileUrl)
 
                         width: repositoryFolderListView.width
                         height: 42
@@ -200,6 +201,26 @@ ApplicationWindow {
                                 color: window.textColor
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
+                            }
+
+                            Rectangle {
+                                visible: repositoryFolderDelegate.gitFolder
+                                color: "#243528"
+                                border.color: "#3d6f49"
+                                border.width: 1
+                                radius: 5
+                                Layout.preferredWidth: gitFolderLabel.implicitWidth + 12
+                                Layout.preferredHeight: 22
+
+                                Label {
+                                    id: gitFolderLabel
+
+                                    anchors.centerIn: parent
+                                    text: qsTr("Git")
+                                    color: window.addedTextColor
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                }
                             }
                         }
                     }
@@ -246,6 +267,107 @@ ApplicationWindow {
         }
 
         Component.onCompleted: openFolder(normalizeFolder(StandardPaths.writableLocation(StandardPaths.HomeLocation)))
+    }
+
+    Dialog {
+        id: connectRepositoryDialog
+
+        function prepareOpen() {
+            remoteUrlTextField.text = appController.remoteUrl
+            open()
+            remoteUrlTextField.forceActiveFocus()
+        }
+
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        width: Math.min(window.width - 48, 460)
+        modal: true
+        focus: true
+        title: qsTr("Connect repository")
+        standardButtons: Dialog.NoButton
+
+        background: Rectangle {
+            color: window.panelColor
+            border.color: window.borderColor
+            border.width: 1
+            radius: 6
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            Label {
+                text: qsTr("Connect repository")
+                color: window.textColor
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: appController.repositoryInitialized
+                    ? qsTr("Add an origin remote to this local repository.")
+                    : qsTr("Initialize this folder and add an origin remote.")
+                color: window.mutedTextColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            TextField {
+                id: remoteUrlTextField
+
+                Layout.fillWidth: true
+                placeholderText: qsTr("https://github.com/user/repository")
+                color: window.textColor
+                placeholderTextColor: window.mutedTextColor
+                selectByMouse: true
+
+                background: Rectangle {
+                    color: window.panelRaisedColor
+                    border.color: remoteUrlTextField.activeFocus ? window.accentColor : window.borderColor
+                    border.width: 1
+                    radius: 5
+                }
+
+                onAccepted: {
+                    if (appController.ConnectRepository(text)) {
+                        connectRepositoryDialog.close()
+                    }
+                }
+            }
+
+            Label {
+                text: appController.statusMessage
+                color: window.mutedTextColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                AppButton {
+                    text: qsTr("Cancel")
+                    onClicked: connectRepositoryDialog.close()
+                }
+
+                AppButton {
+                    text: qsTr("Connect")
+                    primary: true
+                    enabled: remoteUrlTextField.text.trim().length > 0
+                    onClicked: {
+                        if (appController.ConnectRepository(remoteUrlTextField.text)) {
+                            connectRepositoryDialog.close()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Dialog {
@@ -379,13 +501,18 @@ ApplicationWindow {
                 id: branchSyncStatusBadge
 
                 visible: appController.repositoryPath.length > 0
-                    && appController.syncStatusText.length > 0
-                color: appController.hasUpstream
+                    && (appController.syncStatusText.length > 0
+                        || appController.repositoryConnectionStatusText.length > 0)
+                color: !appController.repositoryInitialized || !appController.remoteConnected
+                    ? "#34272a"
+                    : appController.hasUpstream
                     ? (appController.aheadCount === 0 && appController.behindCount === 0
                         ? "#243528"
                         : "#353222")
                     : "#34272a"
-                border.color: appController.hasUpstream
+                border.color: !appController.repositoryInitialized || !appController.remoteConnected
+                    ? "#6b3c45"
+                    : appController.hasUpstream
                     ? (appController.aheadCount === 0 && appController.behindCount === 0
                         ? "#3d6f49"
                         : "#776a32")
@@ -399,8 +526,14 @@ ApplicationWindow {
                     id: branchSyncStatusLabel
 
                     anchors.centerIn: parent
-                    text: appController.syncStatusText
-                    color: appController.hasUpstream
+                    text: appController.repositoryInitialized && appController.remoteConnected
+                        ? (appController.syncStatusText.length > 0
+                            ? appController.syncStatusText
+                            : appController.repositoryConnectionStatusText)
+                        : appController.repositoryConnectionStatusText
+                    color: !appController.repositoryInitialized || !appController.remoteConnected
+                        ? window.removedTextColor
+                        : appController.hasUpstream
                         ? (appController.aheadCount === 0 && appController.behindCount === 0
                             ? window.addedTextColor
                             : "#e4d58a")
@@ -408,6 +541,19 @@ ApplicationWindow {
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                 }
+            }
+
+            AppButton {
+                id: connectRepositoryButton
+
+                text: qsTr("Connect repository")
+                visible: appController.repositoryPath.length > 0
+                    && (!appController.repositoryInitialized || !appController.remoteConnected)
+                enabled: appController.gitAvailable
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: connectRepositoryDialog.prepareOpen()
             }
 
             AppButton {
@@ -436,6 +582,8 @@ ApplicationWindow {
 
                 text: qsTr("Fetch")
                 enabled: appController.repositoryPath.length > 0
+                    && appController.repositoryInitialized
+                    && appController.remoteConnected
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -447,6 +595,8 @@ ApplicationWindow {
 
                 text: qsTr("Pull")
                 enabled: appController.repositoryPath.length > 0
+                    && appController.repositoryInitialized
+                    && appController.remoteConnected
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -775,6 +925,7 @@ ApplicationWindow {
                     placeholderText: qsTr("Commit message")
                     wrapMode: TextEdit.Wrap
                     enabled: appController.repositoryPath.length > 0
+                        && appController.repositoryInitialized
                     color: window.textColor
                     placeholderTextColor: window.mutedTextColor
 
@@ -796,6 +947,7 @@ ApplicationWindow {
                         text: qsTr("Commit")
                         primary: true
                         enabled: !appController.pushInProgress
+                            && appController.repositoryInitialized
                             && appController.stagedFileCount > 0
                             && commitMessageTextArea.text.trim().length > 0
                         onClicked: appController.CommitStagedFiles(commitMessageTextArea.text)
@@ -807,6 +959,8 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         text: qsTr("Push")
                         enabled: appController.repositoryPath.length > 0
+                            && appController.repositoryInitialized
+                            && appController.remoteConnected
                             && !appController.pushInProgress
                         onClicked: appController.PushRepository()
                     }

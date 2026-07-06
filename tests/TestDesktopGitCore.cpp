@@ -50,6 +50,10 @@ private slots:
     void SelectStatusFilesInModel();
     void RunGitVersionCommand();
     void RunGitCommandWithEnvironmentOverride();
+    void NormalizeRemoteUrls();
+    void InitializeAndConnectRepository();
+    void OpenPlainFolderAndConnectFromController();
+    void OpenRepositoryWithExistingOriginFromController();
     void FormatDiffForDisplay();
     void ReadStatusAndDiffFromRepository();
     void StageAndUnstageRepositoryFile();
@@ -194,6 +198,117 @@ void TestDesktopGitCore::RunGitCommandWithEnvironmentOverride()
 
     QVERIFY2(result.Success(), qPrintable(result.standardError));
     QCOMPARE(result.standardOutput, QStringLiteral("from-env"));
+}
+
+void TestDesktopGitCore::NormalizeRemoteUrls()
+{
+    QCOMPARE(
+        GitRepository::NormalizeRemoteUrl(QStringLiteral("https://github.com/user/repository")),
+        QStringLiteral("https://github.com/user/repository.git"));
+    QCOMPARE(
+        GitRepository::NormalizeRemoteUrl(QStringLiteral("https://github.com/user/repository.git")),
+        QStringLiteral("https://github.com/user/repository.git"));
+    QCOMPARE(
+        GitRepository::NormalizeRemoteUrl(QStringLiteral("git@github.com:user/repository")),
+        QStringLiteral("git@github.com:user/repository.git"));
+    QCOMPARE(
+        GitRepository::NormalizeRemoteUrl(QStringLiteral("git@github.com:user/repository.git")),
+        QStringLiteral("git@github.com:user/repository.git"));
+    QCOMPARE(
+        GitRepository::NormalizeRemoteUrl(QStringLiteral("  https://example.com/repository.git/  ")),
+        QStringLiteral("https://example.com/repository.git"));
+    QCOMPARE(GitRepository::NormalizeRemoteUrl(QStringLiteral("  ")), QString());
+    QCOMPARE(GitRepository::NormalizeRemoteUrl(QStringLiteral("https://github.com/user/repo with space")), QString());
+}
+
+void TestDesktopGitCore::InitializeAndConnectRepository()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    QCOMPARE(repository.IsInitialized(), false);
+    QCOMPARE(repository.IsValid(), false);
+
+    const GitCommandResult initResult = repository.InitializeRepository();
+    QVERIFY2(initResult.Success(), qPrintable(initResult.standardError));
+    QCOMPARE(repository.IsInitialized(), true);
+    QCOMPARE(repository.IsValid(), true);
+    QCOMPARE(repository.HasRemote(QStringLiteral("origin")), false);
+
+    const GitCommandResult remoteResult = repository.AddRemote(
+        QStringLiteral("origin"),
+        QStringLiteral("https://github.com/user/repository"));
+    QVERIFY2(remoteResult.Success(), qPrintable(remoteResult.standardError));
+    QCOMPARE(repository.HasRemote(QStringLiteral("origin")), true);
+    QCOMPARE(repository.RemoteUrl(QStringLiteral("origin")), QStringLiteral("https://github.com/user/repository.git"));
+
+    const GitCommandResult duplicateRemoteResult = repository.AddRemote(
+        QStringLiteral("origin"),
+        QStringLiteral("https://github.com/user/other"));
+    QCOMPARE(duplicateRemoteResult.Success(), false);
+    QCOMPARE(repository.RemoteUrl(QStringLiteral("origin")), QStringLiteral("https://github.com/user/repository.git"));
+}
+
+void TestDesktopGitCore::OpenPlainFolderAndConnectFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    GitCommandRunner runner;
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    QCOMPARE(controller.RepositoryPath(), repositoryPath);
+    QCOMPARE(controller.RepositoryInitialized(), false);
+    QCOMPARE(controller.RemoteConnected(), false);
+    QCOMPARE(controller.RepositoryConnectionStatusText(), QStringLiteral("not initialized"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Folder opened. Repository is not initialized."));
+
+    QVERIFY(controller.ConnectRepository(remotePath));
+    QCOMPARE(controller.RepositoryInitialized(), true);
+    QCOMPARE(controller.RemoteConnected(), true);
+    QCOMPARE(controller.RemoteUrl(), remotePath);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Repository connected."));
+}
+
+void TestDesktopGitCore::OpenRepositoryWithExistingOriginFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    GitCommandRunner runner;
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, repositoryPath).Success(), "git remote add failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    QCOMPARE(controller.RepositoryPath(), repositoryPath);
+    QCOMPARE(controller.RepositoryInitialized(), true);
+    QCOMPARE(controller.RemoteConnected(), true);
+    QCOMPARE(controller.RemoteUrl(), remotePath);
+    QCOMPARE(controller.RepositoryConnectionStatusText(), QStringLiteral("remote connected"));
+
+    QVERIFY(controller.ConnectRepository(QStringLiteral("https://github.com/user/ignored")));
+    QCOMPARE(controller.RemoteUrl(), remotePath);
 }
 
 void TestDesktopGitCore::FormatDiffForDisplay()

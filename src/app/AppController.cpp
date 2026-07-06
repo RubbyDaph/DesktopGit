@@ -1,5 +1,7 @@
 #include "AppController.h"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QStringList>
 #include <QtConcurrent>
@@ -43,6 +45,26 @@ QString AppController::RepositoryPath() const
 QString AppController::CurrentBranch() const
 {
     return currentBranch;
+}
+
+bool AppController::RepositoryInitialized() const
+{
+    return repositoryInitialized;
+}
+
+bool AppController::RemoteConnected() const
+{
+    return remoteConnected;
+}
+
+QString AppController::RemoteUrl() const
+{
+    return remoteUrl;
+}
+
+QString AppController::RepositoryConnectionStatusText() const
+{
+    return repositoryConnectionStatusText;
 }
 
 int AppController::AheadCount() const
@@ -145,12 +167,38 @@ void AppController::OpenRepository(const QUrl &repositoryUrl)
     OpenRepositoryPath(repositoryUrl.toLocalFile());
 }
 
+bool AppController::IsRepositoryFolder(const QUrl &folderUrl) const
+{
+    const QString folderPath = folderUrl.toLocalFile();
+    if (folderPath.isEmpty()) {
+        return false;
+    }
+
+    return QFileInfo(QDir(folderPath).filePath(QStringLiteral(".git"))).exists();
+}
+
 void AppController::OpenRepositoryPath(const QString &path)
 {
-    gitRepository.SetPath(path);
-
-    if (!gitRepository.IsValid()) {
+    const QFileInfo pathInfo(path);
+    if (path.trimmed().isEmpty() || !pathInfo.exists() || !pathInfo.isDir()) {
         SetRepositoryPath(QString());
+        SetCurrentBranch(QString());
+        SetRepositoryConnectionState(false, false, QString(), QString());
+        ClearBranchSyncStatus();
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
+        SetStatusMessage(QStringLiteral("Selected path is not a directory."));
+        return;
+    }
+
+    SetRepositoryPath(path);
+    gitRepository.SetPath(path);
+    RefreshRepositoryConnectionState();
+
+    if (!repositoryInitialized) {
         SetCurrentBranch(QString());
         ClearBranchSyncStatus();
         SetSelectedFilePath(QString());
@@ -158,14 +206,30 @@ void AppController::OpenRepositoryPath(const QString &path)
         statusFileModel.Clear();
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
-        SetStatusMessage(QStringLiteral("Selected directory is not a Git repository."));
+        SetStatusMessage(QStringLiteral("Folder opened. Repository is not initialized."));
         return;
     }
 
-    SetRepositoryPath(path);
+    if (!gitRepository.IsValid()) {
+        SetCurrentBranch(QString());
+        ClearBranchSyncStatus();
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
+        SetStatusMessage(QStringLiteral("Folder opened, but it is not a Git work tree."));
+        return;
+    }
+
     SetCurrentBranch(gitRepository.CurrentBranch());
     RefreshBranchSyncStatus();
     RefreshRepository();
+
+    if (!remoteConnected) {
+        SetStatusMessage(QStringLiteral("Repository opened. Remote origin is not connected."));
+        return;
+    }
 
     if (currentBranch.isEmpty()) {
         SetStatusMessage(QStringLiteral("Repository opened. Detached HEAD or no branch detected."));
@@ -187,6 +251,29 @@ void AppController::RefreshRepository()
         return;
     }
 
+    RefreshRepositoryConnectionState();
+    if (!repositoryInitialized) {
+        statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        ClearBranchSyncStatus();
+        SetStatusMessage(QStringLiteral("Repository is not initialized."));
+        return;
+    }
+
+    if (!gitRepository.IsValid()) {
+        statusFileModel.Clear();
+        emit SelectedFilesChanged();
+        emit StagedFileCountChanged();
+        SetSelectedFilePath(QString());
+        SetCurrentDiff(QString());
+        ClearBranchSyncStatus();
+        SetStatusMessage(QStringLiteral("Opened folder is not a Git work tree."));
+        return;
+    }
+
     const QList<GitStatusFile> files = gitRepository.Status();
     statusFileModel.SetFiles(files);
     emit SelectedFilesChanged();
@@ -199,7 +286,7 @@ void AppController::RefreshRepository()
 
 void AppController::SelectStatusFile(const QString &path)
 {
-    if (repositoryPath.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized) {
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
@@ -239,6 +326,11 @@ void AppController::ClearFileSelection()
 
 void AppController::StageSelectedFile()
 {
+    if (!repositoryInitialized) {
+        SetStatusMessage(QStringLiteral("Initialize repository first."));
+        return;
+    }
+
     if (selectedFilePath.isEmpty()) {
         SetStatusMessage(QStringLiteral("Select a file first."));
         return;
@@ -257,6 +349,11 @@ void AppController::StageSelectedFile()
 
 void AppController::UnstageSelectedFile()
 {
+    if (!repositoryInitialized) {
+        SetStatusMessage(QStringLiteral("Initialize repository first."));
+        return;
+    }
+
     if (selectedFilePath.isEmpty()) {
         SetStatusMessage(QStringLiteral("Select a file first."));
         return;
@@ -275,6 +372,11 @@ void AppController::UnstageSelectedFile()
 
 void AppController::StageSelectedFiles()
 {
+    if (!repositoryInitialized) {
+        SetStatusMessage(QStringLiteral("Initialize repository first."));
+        return;
+    }
+
     const QStringList filePaths = statusFileModel.SelectedPaths();
     if (filePaths.isEmpty()) {
         SetStatusMessage(QStringLiteral("Select at least one file first."));
@@ -311,6 +413,11 @@ void AppController::StageSelectedFiles()
 
 void AppController::UnstageSelectedFiles()
 {
+    if (!repositoryInitialized) {
+        SetStatusMessage(QStringLiteral("Initialize repository first."));
+        return;
+    }
+
     const QStringList filePaths = statusFileModel.SelectedPaths();
     if (filePaths.isEmpty()) {
         SetStatusMessage(QStringLiteral("Select at least one file first."));
@@ -348,7 +455,7 @@ void AppController::UnstageSelectedFiles()
 void AppController::CommitStagedFiles(const QString &message)
 {
     const QString trimmedMessage = message.trimmed();
-    if (repositoryPath.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized) {
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
         return;
     }
@@ -382,8 +489,13 @@ void AppController::CommitStagedFiles(const QString &message)
 
 void AppController::PushRepository()
 {
-    if (repositoryPath.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized) {
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (!remoteConnected) {
+        SetStatusMessage(QStringLiteral("Connect remote origin before pushing."));
         return;
     }
 
@@ -448,8 +560,13 @@ void AppController::ClosePushSummary()
 
 void AppController::FetchRepository()
 {
-    if (repositoryPath.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized) {
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (!remoteConnected) {
+        SetStatusMessage(QStringLiteral("Connect remote origin before fetching."));
         return;
     }
 
@@ -501,8 +618,13 @@ void AppController::FetchRepository()
 
 void AppController::PullRepository()
 {
-    if (repositoryPath.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized) {
         SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (!remoteConnected) {
+        SetStatusMessage(QStringLiteral("Connect remote origin before pulling."));
         return;
     }
 
@@ -550,6 +672,50 @@ void AppController::PullRepository()
         repository.SetPath(pulledRepositoryPath);
         return repository.Pull();
     }));
+}
+
+bool AppController::ConnectRepository(const QString &remoteUrl)
+{
+    if (repositoryPath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Open a project folder first."));
+        return false;
+    }
+
+    const QString normalizedRemoteUrl = GitRepository::NormalizeRemoteUrl(remoteUrl);
+    if (normalizedRemoteUrl.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Remote URL is invalid."));
+        return false;
+    }
+
+    if (!repositoryInitialized) {
+        const GitCommandResult initResult = gitRepository.InitializeRepository();
+        if (!initResult.Success()) {
+            const QString error = initResult.standardError.trimmed();
+            SetStatusMessage(error.isEmpty()
+                ? QStringLiteral("Failed to initialize repository.")
+                : error);
+            RefreshRepositoryConnectionState();
+            return false;
+        }
+    }
+
+    RefreshRepositoryConnectionState();
+    if (!remoteConnected) {
+        const GitCommandResult remoteResult = gitRepository.AddRemote(QStringLiteral("origin"), normalizedRemoteUrl);
+        if (!remoteResult.Success()) {
+            const QString error = remoteResult.standardError.trimmed();
+            SetStatusMessage(error.isEmpty()
+                ? QStringLiteral("Failed to connect remote origin.")
+                : error);
+            RefreshRepositoryConnectionState();
+            return false;
+        }
+    }
+
+    RefreshRepositoryConnectionState();
+    RefreshRepository();
+    SetStatusMessage(QStringLiteral("Repository connected."));
+    return true;
 }
 
 void AppController::SetGitAvailable(bool value)
@@ -602,6 +768,26 @@ void AppController::SetCurrentBranch(const QString &value)
     emit CurrentBranchChanged();
 }
 
+void AppController::SetRepositoryConnectionState(
+    bool initialized,
+    bool connected,
+    const QString &url,
+    const QString &statusText)
+{
+    if (repositoryInitialized == initialized
+        && remoteConnected == connected
+        && remoteUrl == url
+        && repositoryConnectionStatusText == statusText) {
+        return;
+    }
+
+    repositoryInitialized = initialized;
+    remoteConnected = connected;
+    remoteUrl = url;
+    repositoryConnectionStatusText = statusText;
+    emit RepositoryConnectionChanged();
+}
+
 void AppController::SetBranchSyncStatus(const GitBranchSyncStatus &status)
 {
     QString nextSyncStatusText;
@@ -644,9 +830,33 @@ void AppController::ClearBranchSyncStatus()
     emit BranchSyncStatusChanged();
 }
 
+void AppController::RefreshRepositoryConnectionState()
+{
+    if (repositoryPath.isEmpty()) {
+        SetRepositoryConnectionState(false, false, QString(), QString());
+        return;
+    }
+
+    gitRepository.SetPath(repositoryPath);
+
+    const bool initialized = gitRepository.IsInitialized();
+    if (!initialized) {
+        SetRepositoryConnectionState(false, false, QString(), QStringLiteral("not initialized"));
+        return;
+    }
+
+    const QString originUrl = gitRepository.RemoteUrl(QStringLiteral("origin"));
+    const bool connected = !originUrl.isEmpty();
+    SetRepositoryConnectionState(
+        true,
+        connected,
+        originUrl,
+        connected ? QStringLiteral("remote connected") : QStringLiteral("remote not connected"));
+}
+
 void AppController::RefreshBranchSyncStatus()
 {
-    if (repositoryPath.isEmpty() || currentBranch.isEmpty()) {
+    if (repositoryPath.isEmpty() || !repositoryInitialized || currentBranch.isEmpty()) {
         ClearBranchSyncStatus();
         return;
     }

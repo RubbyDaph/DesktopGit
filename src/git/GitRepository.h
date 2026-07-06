@@ -33,7 +33,14 @@ public:
     void SetPath(const QString &path);
     QString Path() const;
 
+    static QString NormalizeRemoteUrl(const QString &url);
+
+    bool IsInitialized() const;
     bool IsValid() const;
+    bool HasRemote(const QString &name) const;
+    QString RemoteUrl(const QString &name) const;
+    GitCommandResult InitializeRepository() const;
+    GitCommandResult AddRemote(const QString &name, const QString &url) const;
     QString CurrentBranch() const;
     QList<GitStatusFile> Status() const;
     QString Diff(const QString &filePath) const;

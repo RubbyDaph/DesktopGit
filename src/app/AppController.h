@@ -16,6 +16,10 @@ class AppController : public QObject
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString repositoryPath READ RepositoryPath NOTIFY RepositoryPathChanged)
     Q_PROPERTY(QString currentBranch READ CurrentBranch NOTIFY CurrentBranchChanged)
+    Q_PROPERTY(bool repositoryInitialized READ RepositoryInitialized NOTIFY RepositoryConnectionChanged)
+    Q_PROPERTY(bool remoteConnected READ RemoteConnected NOTIFY RepositoryConnectionChanged)
+    Q_PROPERTY(QString remoteUrl READ RemoteUrl NOTIFY RepositoryConnectionChanged)
+    Q_PROPERTY(QString repositoryConnectionStatusText READ RepositoryConnectionStatusText NOTIFY RepositoryConnectionChanged)
     Q_PROPERTY(int aheadCount READ AheadCount NOTIFY BranchSyncStatusChanged)
     Q_PROPERTY(int behindCount READ BehindCount NOTIFY BranchSyncStatusChanged)
     Q_PROPERTY(bool hasUpstream READ HasUpstream NOTIFY BranchSyncStatusChanged)
@@ -40,6 +44,10 @@ public:
     [[nodiscard]] QString StatusMessage() const;
     [[nodiscard]] QString RepositoryPath() const;
     [[nodiscard]] QString CurrentBranch() const;
+    [[nodiscard]] bool RepositoryInitialized() const;
+    [[nodiscard]] bool RemoteConnected() const;
+    [[nodiscard]] QString RemoteUrl() const;
+    [[nodiscard]] QString RepositoryConnectionStatusText() const;
     [[nodiscard]] int AheadCount() const;
     [[nodiscard]] int BehindCount() const;
     [[nodiscard]] bool HasUpstream() const;
@@ -59,6 +67,7 @@ public:
     Q_INVOKABLE void CheckGitAvailable();
     Q_INVOKABLE void OpenRepository(const QUrl &repositoryUrl);
     Q_INVOKABLE void OpenRepositoryPath(const QString &path);
+    Q_INVOKABLE bool IsRepositoryFolder(const QUrl &folderUrl) const;
     Q_INVOKABLE void RefreshRepository();
     Q_INVOKABLE void SelectStatusFile(const QString &path);
     Q_INVOKABLE void ToggleFileSelection(const QString &path);
@@ -72,6 +81,7 @@ public:
     Q_INVOKABLE void PushRepository();
     Q_INVOKABLE void FetchRepository();
     Q_INVOKABLE void PullRepository();
+    Q_INVOKABLE bool ConnectRepository(const QString &remoteUrl);
     Q_INVOKABLE void ClosePushSummary();
 
 signals:
@@ -80,6 +90,7 @@ signals:
     void StatusMessageChanged();
     void RepositoryPathChanged();
     void CurrentBranchChanged();
+    void RepositoryConnectionChanged();
     void BranchSyncStatusChanged();
     void SelectedFilePathChanged();
     void SelectedFilesChanged();
@@ -101,8 +112,10 @@ private:
     void SetStatusMessage(const QString &value);
     void SetRepositoryPath(const QString &value);
     void SetCurrentBranch(const QString &value);
+    void SetRepositoryConnectionState(bool initialized, bool connected, const QString &url, const QString &statusText);
     void SetBranchSyncStatus(const GitBranchSyncStatus &status);
     void ClearBranchSyncStatus();
+    void RefreshRepositoryConnectionState();
     void RefreshBranchSyncStatus();
     void SetSelectedFilePath(const QString &value);
     void SetCurrentDiff(const QString &value);
@@ -119,6 +132,10 @@ private:
     QString statusMessage;
     QString repositoryPath;
     QString currentBranch;
+    bool repositoryInitialized = false;
+    bool remoteConnected = false;
+    QString remoteUrl;
+    QString repositoryConnectionStatusText;
     int aheadCount = 0;
     int behindCount = 0;
     bool hasUpstream = false;

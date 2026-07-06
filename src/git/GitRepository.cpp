@@ -3,6 +3,8 @@
 #include "GitDiffFormatter.h"
 #include "GitStatusParser.h"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QHash>
 #include <QStringList>
 
@@ -109,6 +111,47 @@ QString GitRepository::Path() const
     return path;
 }
 
+QString GitRepository::NormalizeRemoteUrl(const QString &url)
+{
+    QString normalizedUrl = url.trimmed();
+    while (normalizedUrl.endsWith(QLatin1Char('/'))) {
+        normalizedUrl.chop(1);
+    }
+
+    if (normalizedUrl.isEmpty() || normalizedUrl.contains(QLatin1Char(' '))) {
+        return {};
+    }
+
+    const bool isGitHubWebUrl = normalizedUrl.startsWith(QStringLiteral("https://github.com/"), Qt::CaseInsensitive)
+        || normalizedUrl.startsWith(QStringLiteral("http://github.com/"), Qt::CaseInsensitive);
+    const bool isGitHubSshUrl = normalizedUrl.startsWith(QStringLiteral("git@github.com:"), Qt::CaseInsensitive);
+
+    if ((isGitHubWebUrl || isGitHubSshUrl) && !normalizedUrl.endsWith(QStringLiteral(".git"), Qt::CaseInsensitive)) {
+        normalizedUrl += QStringLiteral(".git");
+    }
+
+    return normalizedUrl;
+}
+
+bool GitRepository::IsInitialized() const
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("rev-parse"),
+        QStringLiteral("--git-dir")
+    }, path);
+
+    if (result.Success()) {
+        return true;
+    }
+
+    const QFileInfo gitEntry(QDir(path).filePath(QStringLiteral(".git")));
+    return gitEntry.exists();
+}
+
 bool GitRepository::IsValid() const
 {
     if (path.isEmpty()) {
@@ -121,6 +164,55 @@ bool GitRepository::IsValid() const
     }, path);
 
     return result.Success() && result.standardOutput.trimmed() == QStringLiteral("true");
+}
+
+bool GitRepository::HasRemote(const QString &name) const
+{
+    return !RemoteUrl(name).isEmpty();
+}
+
+QString GitRepository::RemoteUrl(const QString &name) const
+{
+    if (path.isEmpty() || name.trimmed().isEmpty()) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("remote"),
+        QStringLiteral("get-url"),
+        name.trimmed()
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    return result.standardOutput.trimmed();
+}
+
+GitCommandResult GitRepository::InitializeRepository() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({QStringLiteral("init")}, path);
+}
+
+GitCommandResult GitRepository::AddRemote(const QString &name, const QString &url) const
+{
+    const QString remoteName = name.trimmed();
+    const QString remoteUrl = NormalizeRemoteUrl(url);
+    if (path.isEmpty() || remoteName.isEmpty() || remoteUrl.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("remote"),
+        QStringLiteral("add"),
+        remoteName,
+        remoteUrl
+    }, path);
 }
 
 QString GitRepository::CurrentBranch() const
