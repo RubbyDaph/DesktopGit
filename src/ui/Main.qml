@@ -388,9 +388,34 @@ ApplicationWindow {
                 id: refreshRepositoryButton
 
                 text: appController.repositoryPath.length > 0 ? qsTr("Refresh") : qsTr("Check Git")
+                enabled: !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
                 onClicked: appController.repositoryPath.length > 0
                     ? appController.RefreshRepository()
                     : appController.CheckGitAvailable()
+            }
+
+            AppButton {
+                id: fetchRepositoryButton
+
+                text: qsTr("Fetch")
+                enabled: appController.repositoryPath.length > 0
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: appController.FetchRepository()
+            }
+
+            AppButton {
+                id: pullRepositoryButton
+
+                text: qsTr("Pull")
+                enabled: appController.repositoryPath.length > 0
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: appController.PullRepository()
             }
         }
     }

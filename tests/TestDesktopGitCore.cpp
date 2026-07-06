@@ -26,6 +26,16 @@ bool WriteTextFile(const QString &path, const QString &text)
     return true;
 }
 
+QString ReadTextFile(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+
+    return QString::fromUtf8(file.readAll());
+}
+
 }
 
 class TestDesktopGitCore : public QObject
@@ -49,6 +59,9 @@ private slots:
     void PushRepositoryChanges();
     void PushRepositorySetsUpstreamWhenMissing();
     void PushRepositoryFromController();
+    void FetchRepositoryChanges();
+    void PullRepositoryChanges();
+    void FetchAndPullRepositoryFromController();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -740,6 +753,184 @@ void TestDesktopGitCore::PushRepositoryFromController()
     }, repositoryPath);
     QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
     QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Update file"));
+}
+
+void TestDesktopGitCore::FetchRepositoryChanges()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir workspaceDirectory;
+    QVERIFY(workspaceDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString collaboratorPath = QDir(workspaceDirectory.path()).filePath(QStringLiteral("collaborator"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, repositoryPath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, repositoryPath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), branchName}, repositoryPath).Success(), "git push -u failed");
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, repositoryPath).Success(), "git symbolic-ref failed");
+
+    QVERIFY2(runner.Run({QStringLiteral("clone"), remotePath, collaboratorPath}, workspaceDirectory.path()).Success(), "git clone failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, collaboratorPath).Success(), "collaborator git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Collaborator")}, collaboratorPath).Success(), "collaborator git config user.name failed");
+    QVERIFY(WriteTextFile(QDir(collaboratorPath).filePath(QStringLiteral("file.txt")), QStringLiteral("remote line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, collaboratorPath).Success(), "collaborator git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Remote update")}, collaboratorPath).Success(), "collaborator git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("push")}, collaboratorPath).Success(), "collaborator git push failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const GitCommandResult fetchResult = repository.Fetch();
+    QVERIFY2(fetchResult.Success(), qPrintable(fetchResult.standardError));
+
+    const GitCommandResult remoteHeadResult = runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("rev-parse"), branchName}, repositoryPath);
+    const GitCommandResult trackingHeadResult = runner.Run({QStringLiteral("rev-parse"), QStringLiteral("origin/") + branchName}, repositoryPath);
+    QVERIFY2(remoteHeadResult.Success(), qPrintable(remoteHeadResult.standardError));
+    QVERIFY2(trackingHeadResult.Success(), qPrintable(trackingHeadResult.standardError));
+    QCOMPARE(trackingHeadResult.standardOutput.trimmed(), remoteHeadResult.standardOutput.trimmed());
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("old line\n"));
+}
+
+void TestDesktopGitCore::PullRepositoryChanges()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir workspaceDirectory;
+    QVERIFY(workspaceDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString collaboratorPath = QDir(workspaceDirectory.path()).filePath(QStringLiteral("collaborator"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, repositoryPath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, repositoryPath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), branchName}, repositoryPath).Success(), "git push -u failed");
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, repositoryPath).Success(), "git symbolic-ref failed");
+
+    QVERIFY2(runner.Run({QStringLiteral("clone"), remotePath, collaboratorPath}, workspaceDirectory.path()).Success(), "git clone failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, collaboratorPath).Success(), "collaborator git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Collaborator")}, collaboratorPath).Success(), "collaborator git config user.name failed");
+    QVERIFY(WriteTextFile(QDir(collaboratorPath).filePath(QStringLiteral("file.txt")), QStringLiteral("remote line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, collaboratorPath).Success(), "collaborator git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Remote update")}, collaboratorPath).Success(), "collaborator git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("push")}, collaboratorPath).Success(), "collaborator git push failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const GitCommandResult pullResult = repository.Pull();
+    QVERIFY2(pullResult.Success(), qPrintable(pullResult.standardError));
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("remote line\n"));
+
+    const GitCommandResult logResult = runner.Run({QStringLiteral("log"), QStringLiteral("-1"), QStringLiteral("--pretty=%s")}, repositoryPath);
+    QVERIFY2(logResult.Success(), qPrintable(logResult.standardError));
+    QCOMPARE(logResult.standardOutput.trimmed(), QStringLiteral("Remote update"));
+}
+
+void TestDesktopGitCore::FetchAndPullRepositoryFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir workspaceDirectory;
+    QVERIFY(workspaceDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString collaboratorPath = QDir(workspaceDirectory.path()).filePath(QStringLiteral("collaborator"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("old line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, repositoryPath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, repositoryPath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), branchName}, repositoryPath).Success(), "git push -u failed");
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, repositoryPath).Success(), "git symbolic-ref failed");
+
+    QVERIFY2(runner.Run({QStringLiteral("clone"), remotePath, collaboratorPath}, workspaceDirectory.path()).Success(), "git clone failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, collaboratorPath).Success(), "collaborator git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Collaborator")}, collaboratorPath).Success(), "collaborator git config user.name failed");
+    QVERIFY(WriteTextFile(QDir(collaboratorPath).filePath(QStringLiteral("file.txt")), QStringLiteral("remote line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, collaboratorPath).Success(), "collaborator git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Remote update")}, collaboratorPath).Success(), "collaborator git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("push")}, collaboratorPath).Success(), "collaborator git push failed");
+
+    AppController controller;
+    QSignalSpy fetchCompletedSpy(&controller, &AppController::fetchCompleted);
+    QSignalSpy pullCompletedSpy(&controller, &AppController::pullCompleted);
+
+    controller.OpenRepositoryPath(repositoryPath);
+
+    controller.FetchRepository();
+    QCOMPARE(controller.FetchInProgress(), true);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Fetching changes..."));
+    QVERIFY(fetchCompletedSpy.wait(5000));
+    QCOMPARE(controller.FetchInProgress(), false);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Fetch completed."));
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("old line\n"));
+
+    controller.PullRepository();
+    QCOMPARE(controller.PullInProgress(), true);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Pulling changes..."));
+    QVERIFY(pullCompletedSpy.wait(5000));
+    QCOMPARE(controller.PullInProgress(), false);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Pull completed."));
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("remote line\n"));
 }
 
 QTEST_MAIN(TestDesktopGitCore)

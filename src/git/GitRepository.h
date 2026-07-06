@@ -35,6 +35,8 @@ public:
     GitCommandResult Commit(const QString &message) const;
     GitChangeSummary OutgoingChangeSummary() const;
     GitCommandResult Push() const;
+    GitCommandResult Fetch() const;
+    GitCommandResult Pull() const;
 
 private:
     QString path;

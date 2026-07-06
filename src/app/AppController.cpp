@@ -80,6 +80,16 @@ bool AppController::PushInProgress() const
     return pushInProgress;
 }
 
+bool AppController::FetchInProgress() const
+{
+    return fetchInProgress;
+}
+
+bool AppController::PullInProgress() const
+{
+    return pullInProgress;
+}
+
 QString AppController::CurrentDiff() const
 {
     return currentDiff;
@@ -412,6 +422,110 @@ void AppController::ClosePushSummary()
     SetPushSummaryVisible(false);
 }
 
+void AppController::FetchRepository()
+{
+    if (repositoryPath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (fetchInProgress || pullInProgress || pushInProgress) {
+        return;
+    }
+
+    SetFetchInProgress(true);
+    SetStatusMessage(QStringLiteral("Fetching changes..."));
+
+    const QString fetchedRepositoryPath = repositoryPath;
+    auto *watcher = new QFutureWatcher<GitCommandResult>(this);
+    connect(watcher, &QFutureWatcher<GitCommandResult>::finished, this, [this, watcher, fetchedRepositoryPath]() {
+        const GitCommandResult result = watcher->result();
+        watcher->deleteLater();
+
+        SetFetchInProgress(false);
+
+        if (!result.Success()) {
+            const QString output = (result.standardError.trimmed().isEmpty()
+                ? result.standardOutput
+                : result.standardError).trimmed();
+            if (result.timedOut) {
+                SetStatusMessage(QStringLiteral("Fetch timed out. Check your network connection or Git credentials."));
+                return;
+            }
+
+            SetStatusMessage(output.isEmpty()
+                ? QStringLiteral("Failed to fetch repository.")
+                : output);
+            return;
+        }
+
+        if (repositoryPath == fetchedRepositoryPath) {
+            RefreshRepository();
+        }
+
+        SetStatusMessage(QStringLiteral("Fetch completed."));
+        emit fetchCompleted();
+    });
+
+    watcher->setFuture(QtConcurrent::run([fetchedRepositoryPath]() {
+        GitRepository repository;
+        repository.SetPath(fetchedRepositoryPath);
+        return repository.Fetch();
+    }));
+}
+
+void AppController::PullRepository()
+{
+    if (repositoryPath.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Open a Git repository first."));
+        return;
+    }
+
+    if (fetchInProgress || pullInProgress || pushInProgress) {
+        return;
+    }
+
+    SetPullInProgress(true);
+    SetStatusMessage(QStringLiteral("Pulling changes..."));
+
+    const QString pulledRepositoryPath = repositoryPath;
+    auto *watcher = new QFutureWatcher<GitCommandResult>(this);
+    connect(watcher, &QFutureWatcher<GitCommandResult>::finished, this, [this, watcher, pulledRepositoryPath]() {
+        const GitCommandResult result = watcher->result();
+        watcher->deleteLater();
+
+        SetPullInProgress(false);
+
+        if (!result.Success()) {
+            const QString output = (result.standardError.trimmed().isEmpty()
+                ? result.standardOutput
+                : result.standardError).trimmed();
+            if (result.timedOut) {
+                SetStatusMessage(QStringLiteral("Pull timed out. Check your network connection or Git credentials."));
+                return;
+            }
+
+            SetStatusMessage(output.isEmpty()
+                ? QStringLiteral("Failed to pull repository.")
+                : output);
+            return;
+        }
+
+        if (repositoryPath == pulledRepositoryPath) {
+            RefreshRepository();
+        }
+
+        SetStatusMessage(QStringLiteral("Pull completed."));
+        emit pullCompleted();
+    });
+
+    watcher->setFuture(QtConcurrent::run([pulledRepositoryPath]() {
+        GitRepository repository;
+        repository.SetPath(pulledRepositoryPath);
+        return repository.Pull();
+    }));
+}
+
 void AppController::SetGitAvailable(bool value)
 {
     if (gitAvailable == value) {
@@ -500,4 +614,24 @@ void AppController::SetPushInProgress(bool value)
 
     pushInProgress = value;
     emit PushInProgressChanged();
+}
+
+void AppController::SetFetchInProgress(bool value)
+{
+    if (fetchInProgress == value) {
+        return;
+    }
+
+    fetchInProgress = value;
+    emit FetchInProgressChanged();
+}
+
+void AppController::SetPullInProgress(bool value)
+{
+    if (pullInProgress == value) {
+        return;
+    }
+
+    pullInProgress = value;
+    emit PullInProgressChanged();
 }

@@ -23,6 +23,8 @@ class AppController : public QObject
     Q_PROPERTY(int lastPushLineChanges READ LastPushLineChanges NOTIFY LastPushSummaryChanged)
     Q_PROPERTY(bool pushSummaryVisible READ PushSummaryVisible NOTIFY PushSummaryVisibleChanged)
     Q_PROPERTY(bool pushInProgress READ PushInProgress NOTIFY PushInProgressChanged)
+    Q_PROPERTY(bool fetchInProgress READ FetchInProgress NOTIFY FetchInProgressChanged)
+    Q_PROPERTY(bool pullInProgress READ PullInProgress NOTIFY PullInProgressChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
 
@@ -41,6 +43,8 @@ public:
     [[nodiscard]] int LastPushLineChanges() const;
     [[nodiscard]] bool PushSummaryVisible() const;
     [[nodiscard]] bool PushInProgress() const;
+    [[nodiscard]] bool FetchInProgress() const;
+    [[nodiscard]] bool PullInProgress() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
 
@@ -58,6 +62,8 @@ public:
     Q_INVOKABLE void UnstageSelectedFiles();
     Q_INVOKABLE void CommitStagedFiles(const QString &message);
     Q_INVOKABLE void PushRepository();
+    Q_INVOKABLE void FetchRepository();
+    Q_INVOKABLE void PullRepository();
     Q_INVOKABLE void ClosePushSummary();
 
 signals:
@@ -72,9 +78,13 @@ signals:
     void LastPushSummaryChanged();
     void PushSummaryVisibleChanged();
     void PushInProgressChanged();
+    void FetchInProgressChanged();
+    void PullInProgressChanged();
     void CurrentDiffChanged();
     void commitCreated();
     void pushCompleted();
+    void fetchCompleted();
+    void pullCompleted();
 
 private:
     void SetGitAvailable(bool value);
@@ -86,6 +96,8 @@ private:
     void SetCurrentDiff(const QString &value);
     void SetPushSummaryVisible(bool value);
     void SetPushInProgress(bool value);
+    void SetFetchInProgress(bool value);
+    void SetPullInProgress(bool value);
 
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
@@ -101,4 +113,6 @@ private:
     int lastPushLineChanges = 0;
     bool pushSummaryVisible = false;
     bool pushInProgress = false;
+    bool fetchInProgress = false;
+    bool pullInProgress = false;
 };

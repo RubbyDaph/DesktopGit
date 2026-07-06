@@ -59,6 +59,34 @@ bool IsGitHubSshPort22Failure(const GitCommandResult &result, const QString &rem
             || output.contains(QStringLiteral("Could not read from remote repository"), Qt::CaseInsensitive));
 }
 
+GitCommandResult RunRemoteCommand(
+    const GitCommandRunner &runner,
+    const QString &path,
+    const QStringList &arguments,
+    int timeoutMs)
+{
+    GitCommandResult result = runner.Run(arguments, path, timeoutMs);
+    if (result.Success()) {
+        return result;
+    }
+
+    const GitCommandResult remoteResult = runner.Run({
+        QStringLiteral("remote"),
+        QStringLiteral("-v")
+    }, path);
+
+    if (!remoteResult.Success() || !IsGitHubSshPort22Failure(result, remoteResult.standardOutput)) {
+        return result;
+    }
+
+    return runner.Run(
+        arguments,
+        path,
+        timeoutMs,
+        {{QStringLiteral("GIT_SSH_COMMAND"),
+          QStringLiteral("ssh -o HostName=ssh.github.com -o Port=443")}});
+}
+
 }
 
 GitRepository::GitRepository(QObject *parent)
@@ -333,4 +361,32 @@ GitCommandResult GitRepository::Push() const
         QStringLiteral("origin"),
         branch
     }, path, pushTimeoutMs);
+}
+
+GitCommandResult GitRepository::Fetch() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    constexpr int remoteOperationTimeoutMs = 120000;
+    return RunRemoteCommand(
+        runner,
+        path,
+        {QStringLiteral("fetch"), QStringLiteral("--prune")},
+        remoteOperationTimeoutMs);
+}
+
+GitCommandResult GitRepository::Pull() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    constexpr int remoteOperationTimeoutMs = 120000;
+    return RunRemoteCommand(
+        runner,
+        path,
+        {QStringLiteral("pull"), QStringLiteral("--ff-only")},
+        remoteOperationTimeoutMs);
 }
