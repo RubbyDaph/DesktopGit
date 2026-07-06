@@ -1095,8 +1095,8 @@ ApplicationWindow {
                     Pane {
                         id: commitHistoryPane
 
-                        SplitView.preferredWidth: 360
-                        SplitView.minimumWidth: 280
+                        SplitView.preferredWidth: 420
+                        SplitView.minimumWidth: 320
 
                         background: Rectangle {
                             color: window.panelColor
@@ -1134,8 +1134,12 @@ ApplicationWindow {
                                     required property string date
 
                                     width: commitHistoryListView.width
+                                    height: Math.max(78, commitHistoryContent.implicitHeight + 12)
                                     highlighted: appController.selectedCommitHash === hash
                                     onClicked: appController.SelectCommit(hash)
+                                    ToolTip.visible: hovered && subject.length > 0
+                                    ToolTip.delay: 450
+                                    ToolTip.text: subject
 
                                     background: Rectangle {
                                         color: commitHistoryDelegate.highlighted
@@ -1146,6 +1150,8 @@ ApplicationWindow {
                                     }
 
                                     contentItem: ColumnLayout {
+                                        id: commitHistoryContent
+
                                         spacing: 3
 
                                         RowLayout {
@@ -1171,6 +1177,8 @@ ApplicationWindow {
                                         Label {
                                             text: subject.length > 0 ? subject : qsTr("(no subject)")
                                             color: window.textColor
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
                                         }
