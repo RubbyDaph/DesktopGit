@@ -66,12 +66,18 @@ set_source_files_properties(src/ui/components/AppButton.qml
         QT_RESOURCE_ALIAS AppButton.qml
 )
 
+set_source_files_properties(src/ui/views/CommitHistoryView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS CommitHistoryView.qml
+)
+
 qt_add_qml_module(desktop_git
     URI DesktopGit
     VERSION 1.0
     QML_FILES
         src/ui/Main.qml
         src/ui/components/AppButton.qml
+        src/ui/views/CommitHistoryView.qml
 )
 
 target_include_directories(desktop_git
