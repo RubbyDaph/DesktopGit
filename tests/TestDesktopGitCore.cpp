@@ -338,7 +338,13 @@ void TestDesktopGitCore::ReadCommitHistoryAndCommitDiff()
     const QString secondFilePath = QDir(repositoryPath).filePath(QStringLiteral("second.txt"));
     QVERIFY(WriteTextFile(secondFilePath, QStringLiteral("second line\n")));
     QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("second.txt")}, repositoryPath).Success(), "git add second failed");
-    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Add second file")}, repositoryPath).Success(), "git commit second failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Add second file"),
+        QStringLiteral("-m"),
+        QStringLiteral("Second file commit body")
+    }, repositoryPath).Success(), "git commit second failed");
 
     GitRepository repository;
     repository.SetPath(repositoryPath);
@@ -346,6 +352,7 @@ void TestDesktopGitCore::ReadCommitHistoryAndCommitDiff()
     const QList<GitCommitInfo> commits = repository.CommitHistory(1);
     QCOMPARE(commits.size(), 1);
     QCOMPARE(commits.first().subject, QStringLiteral("Add second file"));
+    QCOMPARE(commits.first().body, QStringLiteral("Second file commit body"));
     QCOMPARE(commits.first().authorName, QStringLiteral("DesktopGit Test"));
     QCOMPARE(commits.first().authorEmail, QStringLiteral("test@example.local"));
     QVERIFY(!commits.first().hash.isEmpty());
@@ -374,6 +381,7 @@ void TestDesktopGitCore::PopulateCommitHistoryModel()
     commit.hash = QStringLiteral("abcdef");
     commit.shortHash = QStringLiteral("abcdef");
     commit.subject = QStringLiteral("Subject");
+    commit.body = QStringLiteral("Body");
     commit.authorName = QStringLiteral("Author");
     commit.authorEmail = QStringLiteral("author@example.local");
     commit.date = QStringLiteral("2026-07-07T12:00:00+03:00");
@@ -389,6 +397,7 @@ void TestDesktopGitCore::PopulateCommitHistoryModel()
     QCOMPARE(model.data(index, CommitHistoryModel::HashRole).toString(), QStringLiteral("abcdef"));
     QCOMPARE(model.data(index, CommitHistoryModel::ShortHashRole).toString(), QStringLiteral("abcdef"));
     QCOMPARE(model.data(index, CommitHistoryModel::SubjectRole).toString(), QStringLiteral("Subject"));
+    QCOMPARE(model.data(index, CommitHistoryModel::BodyRole).toString(), QStringLiteral("Body"));
     QCOMPARE(model.data(index, CommitHistoryModel::AuthorNameRole).toString(), QStringLiteral("Author"));
     QCOMPARE(model.data(index, CommitHistoryModel::AuthorEmailRole).toString(), QStringLiteral("author@example.local"));
     QCOMPARE(model.data(index, CommitHistoryModel::DateRole).toString(), QStringLiteral("2026-07-07T12:00:00+03:00"));
@@ -445,7 +454,13 @@ void TestDesktopGitCore::ReadCommitHistoryFromController()
 
     QVERIFY(WriteTextFile(filePath, QStringLiteral("new line\n")));
     QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add update failed");
-    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Update file")}, repositoryPath).Success(), "git commit update failed");
+    QVERIFY2(runner.Run({
+        QStringLiteral("commit"),
+        QStringLiteral("-m"),
+        QStringLiteral("Update file"),
+        QStringLiteral("-m"),
+        QStringLiteral("Update file body")
+    }, repositoryPath).Success(), "git commit update failed");
 
     AppController controller;
     controller.OpenRepositoryPath(repositoryPath);
@@ -454,6 +469,12 @@ void TestDesktopGitCore::ReadCommitHistoryFromController()
     QCOMPARE(controller.HistoryVisible(), true);
     QCOMPARE(controller.CommitHistory()->rowCount(), 2);
     QVERIFY(!controller.SelectedCommitHash().isEmpty());
+    QVERIFY(!controller.SelectedCommitShortHash().isEmpty());
+    QCOMPARE(controller.SelectedCommitSubject(), QStringLiteral("Update file"));
+    QCOMPARE(controller.SelectedCommitBody(), QStringLiteral("Update file body"));
+    QCOMPARE(controller.SelectedCommitAuthorName(), QStringLiteral("DesktopGit Test"));
+    QCOMPARE(controller.SelectedCommitAuthorEmail(), QStringLiteral("test@example.local"));
+    QVERIFY(!controller.SelectedCommitDate().isEmpty());
     QCOMPARE(controller.CommitFiles()->rowCount(), 1);
 
     const QModelIndex commitIndex = controller.CommitHistory()->index(0, 0);
@@ -462,6 +483,15 @@ void TestDesktopGitCore::ReadCommitHistoryFromController()
     controller.SelectCommitFile(QStringLiteral("file.txt"));
     QCOMPARE(controller.SelectedCommitFilePath(), QStringLiteral("file.txt"));
     QVERIFY(controller.SelectedCommitDiff().contains(QStringLiteral("+new line")));
+
+    controller.SelectCommit(QStringLiteral("missing"));
+    QCOMPARE(controller.SelectedCommitHash(), QString());
+    QCOMPARE(controller.SelectedCommitSubject(), QString());
+    QCOMPARE(controller.SelectedCommitBody(), QString());
+    QCOMPARE(controller.SelectedCommitAuthorName(), QString());
+    QCOMPARE(controller.SelectedCommitAuthorEmail(), QString());
+    QCOMPARE(controller.SelectedCommitDate(), QString());
+    QCOMPARE(controller.CommitFiles()->rowCount(), 0);
 
     controller.CloseHistory();
     QCOMPARE(controller.HistoryVisible(), false);

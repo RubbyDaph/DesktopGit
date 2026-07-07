@@ -65,6 +65,105 @@ Item {
             }
         }
 
+        Rectangle {
+            id: commitDetailsPanel
+
+            Layout.fillWidth: true
+            Layout.maximumHeight: 132
+            implicitHeight: commitDetailsContent.implicitHeight + 18
+            color: root.panelColor
+            border.color: root.borderColor
+            border.width: 1
+            radius: 6
+
+            ColumnLayout {
+                id: commitDetailsContent
+
+                anchors.fill: parent
+                anchors.margins: 9
+                spacing: 6
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        text: root.controller && root.controller.selectedCommitSubject.length > 0
+                            ? root.controller.selectedCommitSubject
+                            : qsTr("Select a commit")
+                        color: root.textColor
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        text: root.controller ? root.controller.selectedCommitShortHash : ""
+                        color: root.accentColor
+                        font.family: "monospace"
+                        visible: text.length > 0
+                    }
+
+                    AppButton {
+                        text: qsTr("Copy hash")
+                        enabled: root.controller && root.controller.selectedCommitHash.length > 0
+                        onClicked: root.controller.CopySelectedCommitHash()
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: root.controller ? root.controller.selectedCommitBody : ""
+                    visible: text.length > 0
+                    color: root.textColor
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        text: root.controller && root.controller.selectedCommitAuthorName.length > 0
+                            ? root.controller.selectedCommitAuthorName
+                            : qsTr("No author")
+                        color: root.mutedTextColor
+                        elide: Text.ElideRight
+                    }
+
+                    Label {
+                        text: root.controller && root.controller.selectedCommitAuthorEmail.length > 0
+                            ? "<" + root.controller.selectedCommitAuthorEmail + ">"
+                            : ""
+                        visible: text.length > 0
+                        color: root.mutedTextColor
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        text: root.controller ? root.controller.selectedCommitDate : ""
+                        visible: text.length > 0
+                        color: root.mutedTextColor
+                        horizontalAlignment: Text.AlignRight
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: root.controller ? root.controller.selectedCommitHash : ""
+                    visible: text.length > 0
+                    color: root.mutedTextColor
+                    font.family: "monospace"
+                    elide: Text.ElideMiddle
+                }
+            }
+        }
+
         SplitView {
             id: historySplitView
 

@@ -1,8 +1,10 @@
 #include "AppController.h"
 
+#include <QClipboard>
 #include <QDir>
 #include <QFileInfo>
 #include <QFutureWatcher>
+#include <QGuiApplication>
 #include <QStringList>
 #include <QtConcurrent>
 
@@ -140,6 +142,36 @@ bool AppController::HistoryVisible() const
 QString AppController::SelectedCommitHash() const
 {
     return selectedCommitHash;
+}
+
+QString AppController::SelectedCommitShortHash() const
+{
+    return selectedCommitShortHash;
+}
+
+QString AppController::SelectedCommitSubject() const
+{
+    return selectedCommitSubject;
+}
+
+QString AppController::SelectedCommitBody() const
+{
+    return selectedCommitBody;
+}
+
+QString AppController::SelectedCommitAuthorName() const
+{
+    return selectedCommitAuthorName;
+}
+
+QString AppController::SelectedCommitAuthorEmail() const
+{
+    return selectedCommitAuthorEmail;
+}
+
+QString AppController::SelectedCommitDate() const
+{
+    return selectedCommitDate;
 }
 
 QString AppController::SelectedCommitFilePath() const
@@ -829,6 +861,7 @@ void AppController::SelectCommit(const QString &hash)
     }
 
     SetSelectedCommitHash(hash);
+    SetSelectedCommitDetails(commitHistoryModel.CommitByHash(hash));
     SetSelectedCommitFilePath(QString());
     SetSelectedCommitDiff(QString());
 
@@ -849,6 +882,23 @@ void AppController::SelectCommitFile(const QString &path)
     SetSelectedCommitFilePath(path);
     SetSelectedCommitDiff(gitRepository.CommitFileDiff(selectedCommitHash, path));
     SetStatusMessage(QStringLiteral("Showing commit diff for %1.").arg(path));
+}
+
+void AppController::CopySelectedCommitHash()
+{
+    if (selectedCommitHash.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a commit first."));
+        return;
+    }
+
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (!clipboard) {
+        SetStatusMessage(QStringLiteral("Clipboard is not available."));
+        return;
+    }
+
+    clipboard->setText(selectedCommitHash);
+    SetStatusMessage(QStringLiteral("Commit hash copied."));
 }
 
 void AppController::SetGitAvailable(bool value)
@@ -1077,6 +1127,26 @@ void AppController::SetSelectedCommitHash(const QString &value)
     emit SelectedCommitChanged();
 }
 
+void AppController::SetSelectedCommitDetails(const GitCommitInfo &commit)
+{
+    if (selectedCommitShortHash == commit.shortHash
+        && selectedCommitSubject == commit.subject
+        && selectedCommitBody == commit.body
+        && selectedCommitAuthorName == commit.authorName
+        && selectedCommitAuthorEmail == commit.authorEmail
+        && selectedCommitDate == commit.date) {
+        return;
+    }
+
+    selectedCommitShortHash = commit.shortHash;
+    selectedCommitSubject = commit.subject;
+    selectedCommitBody = commit.body;
+    selectedCommitAuthorName = commit.authorName;
+    selectedCommitAuthorEmail = commit.authorEmail;
+    selectedCommitDate = commit.date;
+    emit SelectedCommitChanged();
+}
+
 void AppController::SetSelectedCommitFilePath(const QString &value)
 {
     if (selectedCommitFilePath == value) {
@@ -1100,6 +1170,7 @@ void AppController::SetSelectedCommitDiff(const QString &value)
 void AppController::ClearCommitSelection()
 {
     SetSelectedCommitHash(QString());
+    SetSelectedCommitDetails({});
     SetSelectedCommitFilePath(QString());
     SetSelectedCommitDiff(QString());
 }

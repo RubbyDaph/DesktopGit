@@ -14,6 +14,7 @@ public:
         HashRole = Qt::UserRole + 1,
         ShortHashRole,
         SubjectRole,
+        BodyRole,
         AuthorNameRole,
         AuthorEmailRole,
         DateRole
@@ -28,6 +29,7 @@ public:
     void SetCommits(const QList<GitCommitInfo> &commits);
     void Clear();
     [[nodiscard]] bool ContainsHash(const QString &hash) const;
+    [[nodiscard]] GitCommitInfo CommitByHash(const QString &hash) const;
 
 private:
     QList<GitCommitInfo> commits;

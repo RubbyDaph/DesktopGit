@@ -28,6 +28,7 @@ struct GitCommitInfo
     QString hash;
     QString shortHash;
     QString subject;
+    QString body;
     QString authorName;
     QString authorEmail;
     QString date;

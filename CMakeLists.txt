@@ -50,6 +50,7 @@ target_link_libraries(desktop_git_core
     PUBLIC
         Qt6::Concurrent
         Qt6::Core
+        Qt6::Gui
 )
 
 qt_add_executable(desktop_git
@@ -117,3 +118,7 @@ target_link_libraries(desktop_git_tests
 )
 
 add_test(NAME desktop_git_tests COMMAND desktop_git_tests)
+set_tests_properties(desktop_git_tests
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

@@ -537,7 +537,7 @@ QList<GitCommitInfo> GitRepository::CommitHistory(int limit) const
         QStringLiteral("-n"),
         QString::number(limit),
         QStringLiteral("--date=iso-strict"),
-        QStringLiteral("--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%ad%x1e")
+        QStringLiteral("--pretty=format:%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%ad%x1e")
     }, path);
 
     if (!result.Success()) {
@@ -550,7 +550,7 @@ QList<GitCommitInfo> GitRepository::CommitHistory(int limit) const
 
     for (const QString &record : records) {
         const QStringList fields = record.split(QChar(0x1f));
-        if (fields.size() != 6) {
+        if (fields.size() != 7) {
             continue;
         }
 
@@ -558,9 +558,10 @@ QList<GitCommitInfo> GitRepository::CommitHistory(int limit) const
         commit.hash = fields.at(0).trimmed();
         commit.shortHash = fields.at(1).trimmed();
         commit.subject = fields.at(2).trimmed();
-        commit.authorName = fields.at(3).trimmed();
-        commit.authorEmail = fields.at(4).trimmed();
-        commit.date = fields.at(5).trimmed();
+        commit.body = fields.at(3).trimmed();
+        commit.authorName = fields.at(4).trimmed();
+        commit.authorEmail = fields.at(5).trimmed();
+        commit.date = fields.at(6).trimmed();
         commits.append(commit);
     }
 

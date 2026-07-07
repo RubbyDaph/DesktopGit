@@ -29,6 +29,8 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return commit.shortHash;
     case SubjectRole:
         return commit.subject;
+    case BodyRole:
+        return commit.body;
     case AuthorNameRole:
         return commit.authorName;
     case AuthorEmailRole:
@@ -46,6 +48,7 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
         {HashRole, "hash"},
         {ShortHashRole, "shortHash"},
         {SubjectRole, "subject"},
+        {BodyRole, "body"},
         {AuthorNameRole, "authorName"},
         {AuthorEmailRole, "authorEmail"},
         {DateRole, "date"}
@@ -73,4 +76,15 @@ bool CommitHistoryModel::ContainsHash(const QString &hash) const
     }
 
     return false;
+}
+
+GitCommitInfo CommitHistoryModel::CommitByHash(const QString &hash) const
+{
+    for (const GitCommitInfo &commit : commits) {
+        if (commit.hash == hash) {
+            return commit;
+        }
+    }
+
+    return {};
 }

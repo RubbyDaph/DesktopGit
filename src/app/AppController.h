@@ -37,6 +37,12 @@ class AppController : public QObject
     Q_PROPERTY(bool pullInProgress READ PullInProgress NOTIFY PullInProgressChanged)
     Q_PROPERTY(bool historyVisible READ HistoryVisible NOTIFY HistoryVisibleChanged)
     Q_PROPERTY(QString selectedCommitHash READ SelectedCommitHash NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitShortHash READ SelectedCommitShortHash NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitSubject READ SelectedCommitSubject NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitBody READ SelectedCommitBody NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitAuthorName READ SelectedCommitAuthorName NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitAuthorEmail READ SelectedCommitAuthorEmail NOTIFY SelectedCommitChanged)
+    Q_PROPERTY(QString selectedCommitDate READ SelectedCommitDate NOTIFY SelectedCommitChanged)
     Q_PROPERTY(QString selectedCommitFilePath READ SelectedCommitFilePath NOTIFY SelectedCommitFileChanged)
     Q_PROPERTY(QString selectedCommitDiff READ SelectedCommitDiff NOTIFY SelectedCommitDiffChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
@@ -71,6 +77,12 @@ public:
     [[nodiscard]] bool PullInProgress() const;
     [[nodiscard]] bool HistoryVisible() const;
     [[nodiscard]] QString SelectedCommitHash() const;
+    [[nodiscard]] QString SelectedCommitShortHash() const;
+    [[nodiscard]] QString SelectedCommitSubject() const;
+    [[nodiscard]] QString SelectedCommitBody() const;
+    [[nodiscard]] QString SelectedCommitAuthorName() const;
+    [[nodiscard]] QString SelectedCommitAuthorEmail() const;
+    [[nodiscard]] QString SelectedCommitDate() const;
     [[nodiscard]] QString SelectedCommitFilePath() const;
     [[nodiscard]] QString SelectedCommitDiff() const;
     [[nodiscard]] QString CurrentDiff() const;
@@ -101,6 +113,7 @@ public:
     Q_INVOKABLE void RefreshCommitHistory();
     Q_INVOKABLE void SelectCommit(const QString &hash);
     Q_INVOKABLE void SelectCommitFile(const QString &path);
+    Q_INVOKABLE void CopySelectedCommitHash();
     Q_INVOKABLE void ClosePushSummary();
 
 signals:
@@ -148,6 +161,7 @@ private:
     void SetPullInProgress(bool value);
     void SetHistoryVisible(bool value);
     void SetSelectedCommitHash(const QString &value);
+    void SetSelectedCommitDetails(const GitCommitInfo &commit);
     void SetSelectedCommitFilePath(const QString &value);
     void SetSelectedCommitDiff(const QString &value);
     void ClearCommitSelection();
@@ -180,6 +194,12 @@ private:
     bool pullInProgress = false;
     bool historyVisible = false;
     QString selectedCommitHash;
+    QString selectedCommitShortHash;
+    QString selectedCommitSubject;
+    QString selectedCommitBody;
+    QString selectedCommitAuthorName;
+    QString selectedCommitAuthorEmail;
+    QString selectedCommitDate;
     QString selectedCommitFilePath;
     QString selectedCommitDiff;
 };
