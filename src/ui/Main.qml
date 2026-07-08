@@ -371,6 +371,286 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: cloneRepositoryDialog
+
+        property string currentFolder: ""
+        property string selectedParentFolder: currentFolder
+        property bool folderNameEdited: false
+
+        function normalizeFolder(folderPath) {
+            const path = String(folderPath)
+            return path.startsWith("file://") ? path : "file://" + path
+        }
+
+        function displayPath(folderUrl) {
+            const path = decodeURIComponent(String(folderUrl))
+            return path.startsWith("file://") ? path.substring(7) : path
+        }
+
+        function parentFolder(folderUrl) {
+            let path = String(folderUrl)
+
+            if (path.endsWith("/") && path.length > "file:///".length) {
+                path = path.substring(0, path.length - 1)
+            }
+
+            const lastSlash = path.lastIndexOf("/")
+            if (lastSlash <= "file://".length) {
+                return "file:///"
+            }
+
+            return path.substring(0, lastSlash)
+        }
+
+        function openFolder(folderUrl) {
+            currentFolder = String(folderUrl)
+            selectedParentFolder = currentFolder
+        }
+
+        function prepareOpen() {
+            cloneRemoteUrlTextField.text = ""
+            cloneFolderNameTextField.text = ""
+            folderNameEdited = false
+            if (appController.repositoryPath.length > 0) {
+                openFolder(parentFolder(normalizeFolder(appController.repositoryPath)))
+            }
+            open()
+            cloneRemoteUrlTextField.forceActiveFocus()
+        }
+
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        width: Math.min(window.width - 48, 760)
+        height: Math.min(window.height - 64, 620)
+        modal: true
+        focus: true
+        title: qsTr("Clone repository")
+        standardButtons: Dialog.NoButton
+        closePolicy: appController.cloneInProgress ? Popup.NoAutoClose : Popup.CloseOnEscape
+
+        background: Rectangle {
+            color: window.panelColor
+            border.color: window.borderColor
+            border.width: 1
+            radius: 6
+        }
+
+        FolderListModel {
+            id: cloneParentFolderModel
+
+            folder: cloneRepositoryDialog.currentFolder
+            showDirs: true
+            showFiles: false
+            showDotAndDotDot: false
+            sortField: FolderListModel.Name
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                text: qsTr("Clone repository")
+                color: window.textColor
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+                Layout.fillWidth: true
+            }
+
+            TextField {
+                id: cloneRemoteUrlTextField
+
+                Layout.fillWidth: true
+                placeholderText: qsTr("https://github.com/user/repository")
+                color: window.textColor
+                placeholderTextColor: window.mutedTextColor
+                selectByMouse: true
+                enabled: !appController.cloneInProgress
+
+                background: Rectangle {
+                    color: window.panelRaisedColor
+                    border.color: cloneRemoteUrlTextField.activeFocus ? window.accentColor : window.borderColor
+                    border.width: 1
+                    radius: 5
+                }
+
+                onTextChanged: {
+                    if (!cloneRepositoryDialog.folderNameEdited) {
+                        cloneFolderNameTextField.text = appController.DefaultCloneFolderName(text)
+                    }
+                }
+            }
+
+            TextField {
+                id: cloneFolderNameTextField
+
+                Layout.fillWidth: true
+                placeholderText: qsTr("folder-name")
+                color: window.textColor
+                placeholderTextColor: window.mutedTextColor
+                selectByMouse: true
+                enabled: !appController.cloneInProgress
+
+                background: Rectangle {
+                    color: window.panelRaisedColor
+                    border.color: cloneFolderNameTextField.activeFocus ? window.accentColor : window.borderColor
+                    border.width: 1
+                    radius: 5
+                }
+
+                onTextEdited: cloneRepositoryDialog.folderNameEdited = true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Label {
+                    text: qsTr("Parent folder")
+                    color: window.textColor
+                    font.weight: Font.DemiBold
+                }
+
+                Label {
+                    text: cloneRepositoryDialog.displayPath(cloneRepositoryDialog.selectedParentFolder)
+                    color: window.mutedTextColor
+                    elide: Text.ElideMiddle
+                    Layout.fillWidth: true
+                }
+
+                AppButton {
+                    text: qsTr("Up")
+                    enabled: !appController.cloneInProgress
+                        && cloneRepositoryDialog.currentFolder !== "file:///"
+                    onClicked: cloneRepositoryDialog.openFolder(
+                        cloneRepositoryDialog.parentFolder(cloneRepositoryDialog.currentFolder))
+                }
+
+                AppButton {
+                    text: qsTr("Use Current")
+                    enabled: !appController.cloneInProgress
+                    onClicked: cloneRepositoryDialog.selectedParentFolder = cloneRepositoryDialog.currentFolder
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: window.backgroundColor
+                border.color: window.borderColor
+                border.width: 1
+                clip: true
+
+                ListView {
+                    id: cloneParentFolderListView
+
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    clip: true
+                    model: cloneParentFolderModel
+                    enabled: !appController.cloneInProgress
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: ItemDelegate {
+                        id: cloneParentFolderDelegate
+
+                        required property string fileName
+                        required property url fileUrl
+
+                        width: cloneParentFolderListView.width
+                        height: 42
+                        highlighted: cloneRepositoryDialog.selectedParentFolder === String(fileUrl)
+                        onClicked: cloneRepositoryDialog.selectedParentFolder = String(fileUrl)
+                        onDoubleClicked: cloneRepositoryDialog.openFolder(fileUrl)
+
+                        background: Rectangle {
+                            color: cloneParentFolderDelegate.highlighted
+                                ? "#333842"
+                                : (cloneParentFolderDelegate.hovered ? window.panelRaisedColor : "transparent")
+                            border.color: cloneParentFolderDelegate.highlighted ? window.accentColor : "transparent"
+                            border.width: 1
+                        }
+
+                        contentItem: RowLayout {
+                            spacing: 8
+
+                            Label {
+                                text: "dir"
+                                color: window.mutedTextColor
+                                font.family: "monospace"
+                                Layout.preferredWidth: 34
+                            }
+
+                            Label {
+                                text: cloneParentFolderDelegate.fileName
+                                color: window.textColor
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+
+                    Label {
+                        anchors.centerIn: parent
+                        visible: cloneParentFolderModel.count === 0
+                        text: qsTr("No folders")
+                        color: window.mutedTextColor
+                    }
+                }
+            }
+
+            ProgressBar {
+                Layout.fillWidth: true
+                visible: appController.cloneInProgress
+                indeterminate: visible
+            }
+
+            Label {
+                text: appController.statusMessage
+                color: window.mutedTextColor
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                AppButton {
+                    text: qsTr("Cancel")
+                    enabled: !appController.cloneInProgress
+                    onClicked: cloneRepositoryDialog.close()
+                }
+
+                AppButton {
+                    text: qsTr("Clone")
+                    primary: true
+                    enabled: !appController.cloneInProgress
+                        && cloneRemoteUrlTextField.text.trim().length > 0
+                        && cloneFolderNameTextField.text.trim().length > 0
+                    onClicked: appController.CloneRepository(
+                        cloneRemoteUrlTextField.text,
+                        cloneRepositoryDialog.displayPath(cloneRepositoryDialog.selectedParentFolder),
+                        cloneFolderNameTextField.text)
+                }
+            }
+        }
+
+        Connections {
+            target: appController
+
+            function onCloneCompleted() {
+                cloneRepositoryDialog.close()
+            }
+        }
+
+        Component.onCompleted: openFolder(normalizeFolder(StandardPaths.writableLocation(StandardPaths.HomeLocation)))
+    }
+
+    Dialog {
         id: pushSummaryDialog
 
         x: Math.round((window.width - width) / 2)
@@ -550,6 +830,7 @@ ApplicationWindow {
                 visible: appController.repositoryPath.length > 0
                     && (!appController.repositoryInitialized || !appController.remoteConnected)
                 enabled: appController.gitAvailable
+                    && !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -562,14 +843,28 @@ ApplicationWindow {
                 text: qsTr("Open")
                 primary: true
                 enabled: appController.gitAvailable
+                    && !appController.cloneInProgress
                 onClicked: repositoryPickerDialog.prepareOpen()
+            }
+
+            AppButton {
+                id: cloneRepositoryButton
+
+                text: qsTr("Clone")
+                enabled: appController.gitAvailable
+                    && !appController.cloneInProgress
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: cloneRepositoryDialog.prepareOpen()
             }
 
             AppButton {
                 id: refreshRepositoryButton
 
                 text: appController.repositoryPath.length > 0 ? qsTr("Refresh") : qsTr("Check Git")
-                enabled: !appController.fetchInProgress
+                enabled: !appController.cloneInProgress
+                    && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
                 onClicked: appController.repositoryPath.length > 0
@@ -583,6 +878,7 @@ ApplicationWindow {
                 text: qsTr("History")
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
+                    && !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -595,6 +891,7 @@ ApplicationWindow {
                 text: qsTr("Branches")
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
+                    && !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -608,6 +905,7 @@ ApplicationWindow {
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
                     && appController.remoteConnected
+                    && !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
@@ -621,6 +919,7 @@ ApplicationWindow {
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
                     && appController.remoteConnected
+                    && !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress

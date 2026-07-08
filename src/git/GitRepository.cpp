@@ -8,6 +8,8 @@
 #include <QHash>
 #include <QStringList>
 
+#include <algorithm>
+
 namespace {
 
 struct DiffStat
@@ -136,6 +138,35 @@ QString GitRepository::NormalizeRemoteUrl(const QString &url)
     }
 
     return normalizedUrl;
+}
+
+QString GitRepository::DefaultCloneFolderName(const QString &url)
+{
+    QString normalizedUrl = NormalizeRemoteUrl(url);
+    if (normalizedUrl.isEmpty()) {
+        return {};
+    }
+
+    while (normalizedUrl.endsWith(QLatin1Char('/'))) {
+        normalizedUrl.chop(1);
+    }
+
+    if (normalizedUrl.endsWith(QStringLiteral(".git"), Qt::CaseInsensitive)) {
+        normalizedUrl.chop(4);
+    }
+
+    const int slashIndex = normalizedUrl.lastIndexOf(QLatin1Char('/'));
+    const int colonIndex = normalizedUrl.lastIndexOf(QLatin1Char(':'));
+    const int separatorIndex = std::max(slashIndex, colonIndex);
+    const QString folderName = separatorIndex >= 0
+        ? normalizedUrl.mid(separatorIndex + 1).trimmed()
+        : QFileInfo(normalizedUrl).fileName().trimmed();
+
+    if (folderName.contains(QLatin1Char('/')) || folderName.contains(QLatin1Char('\\'))) {
+        return {};
+    }
+
+    return folderName;
 }
 
 bool GitRepository::IsInitialized() const
@@ -485,6 +516,47 @@ GitCommandResult GitRepository::Pull() const
         runner,
         path,
         {QStringLiteral("pull"), QStringLiteral("--ff-only")},
+        remoteOperationTimeoutMs);
+}
+
+GitCommandResult GitRepository::CloneRepository(
+    const QString &remoteUrl,
+    const QString &parentDirectory,
+    const QString &folderName) const
+{
+    GitCommandResult result;
+
+    const QString normalizedRemoteUrl = NormalizeRemoteUrl(remoteUrl);
+    const QString trimmedParentDirectory = parentDirectory.trimmed();
+    const QString trimmedFolderName = folderName.trimmed();
+
+    if (normalizedRemoteUrl.isEmpty()) {
+        result.standardError = QStringLiteral("Remote URL is invalid.");
+        return result;
+    }
+
+    if (trimmedParentDirectory.isEmpty() || !QFileInfo(trimmedParentDirectory).isDir()) {
+        result.standardError = QStringLiteral("Clone parent folder is invalid.");
+        return result;
+    }
+
+    if (trimmedFolderName.isEmpty()
+        || trimmedFolderName.contains(QLatin1Char('/'))
+        || trimmedFolderName.contains(QLatin1Char('\\'))) {
+        result.standardError = QStringLiteral("Clone folder name is invalid.");
+        return result;
+    }
+
+    if (QFileInfo(QDir(trimmedParentDirectory).filePath(trimmedFolderName)).exists()) {
+        result.standardError = QStringLiteral("Clone target folder already exists.");
+        return result;
+    }
+
+    constexpr int remoteOperationTimeoutMs = 120000;
+    return RunRemoteCommand(
+        runner,
+        trimmedParentDirectory,
+        {QStringLiteral("clone"), normalizedRemoteUrl, trimmedFolderName},
         remoteOperationTimeoutMs);
 }
 

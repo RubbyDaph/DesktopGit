@@ -55,6 +55,8 @@ private slots:
     void RunGitVersionCommand();
     void RunGitCommandWithEnvironmentOverride();
     void NormalizeRemoteUrls();
+    void GenerateDefaultCloneFolderNames();
+    void CloneRepositoryChanges();
     void InitializeAndConnectRepository();
     void OpenPlainFolderAndConnectFromController();
     void OpenRepositoryWithExistingOriginFromController();
@@ -75,6 +77,7 @@ private slots:
     void FetchRepositoryChanges();
     void PullRepositoryChanges();
     void FetchAndPullRepositoryFromController();
+    void CloneRepositoryFromController();
     void ReadBranchSyncStatus();
     void ReadAndChangeLocalBranches();
     void ManageBranchesFromController();
@@ -261,6 +264,81 @@ void TestDesktopGitCore::NormalizeRemoteUrls()
         QStringLiteral("https://example.com/repository.git"));
     QCOMPARE(GitRepository::NormalizeRemoteUrl(QStringLiteral("  ")), QString());
     QCOMPARE(GitRepository::NormalizeRemoteUrl(QStringLiteral("https://github.com/user/repo with space")), QString());
+}
+
+void TestDesktopGitCore::GenerateDefaultCloneFolderNames()
+{
+    QCOMPARE(
+        GitRepository::DefaultCloneFolderName(QStringLiteral("https://github.com/user/repository")),
+        QStringLiteral("repository"));
+    QCOMPARE(
+        GitRepository::DefaultCloneFolderName(QStringLiteral("https://github.com/user/repository.git")),
+        QStringLiteral("repository"));
+    QCOMPARE(
+        GitRepository::DefaultCloneFolderName(QStringLiteral("git@github.com:user/repository.git")),
+        QStringLiteral("repository"));
+    QCOMPARE(
+        GitRepository::DefaultCloneFolderName(QStringLiteral("/tmp/repository.git")),
+        QStringLiteral("repository"));
+    QCOMPARE(GitRepository::DefaultCloneFolderName(QStringLiteral("  ")), QString());
+}
+
+void TestDesktopGitCore::CloneRepositoryChanges()
+{
+    QTemporaryDir sourceDirectory;
+    QVERIFY(sourceDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir cloneParentDirectory;
+    QVERIFY(cloneParentDirectory.isValid());
+
+    const QString sourcePath = sourceDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString cloneParentPath = cloneParentDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, sourcePath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, sourcePath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, sourcePath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(QDir(sourcePath).filePath(QStringLiteral("file.txt")), QStringLiteral("source line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, sourcePath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, sourcePath).Success(), "git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, sourcePath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), QStringLiteral("HEAD")}, sourcePath).Success(), "git push failed");
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, sourcePath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, sourcePath).Success(), "git symbolic-ref failed");
+
+    GitRepository repository;
+    const GitCommandResult cloneResult = repository.CloneRepository(
+        remotePath,
+        cloneParentPath,
+        QStringLiteral("cloned-repository"));
+    QVERIFY2(cloneResult.Success(), qPrintable(cloneResult.standardError));
+
+    const QString clonedRepositoryPath = QDir(cloneParentPath).filePath(QStringLiteral("cloned-repository"));
+    QVERIFY(QFileInfo(QDir(clonedRepositoryPath).filePath(QStringLiteral(".git"))).exists());
+    QCOMPARE(ReadTextFile(QDir(clonedRepositoryPath).filePath(QStringLiteral("file.txt"))), QStringLiteral("source line\n"));
+
+    const GitCommandResult duplicateCloneResult = repository.CloneRepository(
+        remotePath,
+        cloneParentPath,
+        QStringLiteral("cloned-repository"));
+    QVERIFY(!duplicateCloneResult.Success());
+    QCOMPARE(duplicateCloneResult.standardError, QStringLiteral("Clone target folder already exists."));
+
+    const GitCommandResult invalidFolderResult = repository.CloneRepository(
+        remotePath,
+        cloneParentPath,
+        QStringLiteral("bad/name"));
+    QVERIFY(!invalidFolderResult.Success());
+    QCOMPARE(invalidFolderResult.standardError, QStringLiteral("Clone folder name is invalid."));
 }
 
 void TestDesktopGitCore::InitializeAndConnectRepository()
@@ -1313,6 +1391,65 @@ void TestDesktopGitCore::FetchAndPullRepositoryFromController()
     QCOMPARE(controller.BehindCount(), 0);
     QCOMPARE(controller.SyncStatusText(), QStringLiteral("synced"));
     QCOMPARE(ReadTextFile(filePath), QStringLiteral("remote line\n"));
+}
+
+void TestDesktopGitCore::CloneRepositoryFromController()
+{
+    QTemporaryDir sourceDirectory;
+    QVERIFY(sourceDirectory.isValid());
+
+    QTemporaryDir remoteDirectory;
+    QVERIFY(remoteDirectory.isValid());
+
+    QTemporaryDir cloneParentDirectory;
+    QVERIFY(cloneParentDirectory.isValid());
+
+    const QString sourcePath = sourceDirectory.path();
+    const QString remotePath = remoteDirectory.path();
+    const QString cloneParentPath = cloneParentDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, sourcePath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("init"), QStringLiteral("--bare")}, remotePath).Success(), "git init --bare failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, sourcePath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, sourcePath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(QDir(sourcePath).filePath(QStringLiteral("file.txt")), QStringLiteral("controller clone line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, sourcePath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, sourcePath).Success(), "git commit failed");
+    QVERIFY2(runner.Run({QStringLiteral("remote"), QStringLiteral("add"), QStringLiteral("origin"), remotePath}, sourcePath).Success(), "git remote add failed");
+    QVERIFY2(runner.Run({QStringLiteral("push"), QStringLiteral("-u"), QStringLiteral("origin"), QStringLiteral("HEAD")}, sourcePath).Success(), "git push failed");
+    const GitCommandResult branchResult = runner.Run({QStringLiteral("branch"), QStringLiteral("--show-current")}, sourcePath);
+    QVERIFY2(branchResult.Success(), qPrintable(branchResult.standardError));
+    const QString branchName = branchResult.standardOutput.trimmed();
+    QVERIFY(!branchName.isEmpty());
+    QVERIFY2(runner.Run({QStringLiteral("--git-dir"), remotePath, QStringLiteral("symbolic-ref"), QStringLiteral("HEAD"), QStringLiteral("refs/heads/") + branchName}, sourcePath).Success(), "git symbolic-ref failed");
+
+    AppController controller;
+    QSignalSpy cloneCompletedSpy(&controller, &AppController::cloneCompleted);
+
+    QCOMPARE(controller.DefaultCloneFolderName(remotePath), QFileInfo(remotePath).fileName());
+
+    controller.CloneRepository(remotePath, cloneParentPath, QStringLiteral("controller-clone"));
+    QCOMPARE(controller.CloneInProgress(), true);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Cloning repository..."));
+    QVERIFY(cloneCompletedSpy.wait(5000));
+
+    const QString clonedRepositoryPath = QDir(cloneParentPath).filePath(QStringLiteral("controller-clone"));
+    QCOMPARE(controller.CloneInProgress(), false);
+    QCOMPARE(controller.RepositoryPath(), clonedRepositoryPath);
+    QCOMPARE(controller.RepositoryInitialized(), true);
+    QCOMPARE(controller.RemoteConnected(), true);
+    QCOMPARE(controller.RemoteUrl(), remotePath);
+    QCOMPARE(controller.CurrentBranch(), branchName);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Repository cloned."));
+    QCOMPARE(ReadTextFile(QDir(clonedRepositoryPath).filePath(QStringLiteral("file.txt"))), QStringLiteral("controller clone line\n"));
+
+    controller.CloneRepository(remotePath, cloneParentPath, QStringLiteral("controller-clone"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Clone target folder already exists."));
+
+    controller.CloneRepository(QStringLiteral("bad url with spaces"), cloneParentPath, QStringLiteral("bad-clone"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Remote URL is invalid."));
 }
 
 void TestDesktopGitCore::ReadBranchSyncStatus()

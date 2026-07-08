@@ -16,6 +16,12 @@ struct PushOperationResult
     GitCommandResult commandResult;
 };
 
+struct CloneOperationResult
+{
+    QString targetPath;
+    GitCommandResult commandResult;
+};
+
 }
 
 AppController::AppController(QObject *parent)
@@ -132,6 +138,11 @@ bool AppController::FetchInProgress() const
 bool AppController::PullInProgress() const
 {
     return pullInProgress;
+}
+
+bool AppController::CloneInProgress() const
+{
+    return cloneInProgress;
 }
 
 bool AppController::HistoryVisible() const
@@ -799,6 +810,88 @@ void AppController::PullRepository()
     }));
 }
 
+QString AppController::DefaultCloneFolderName(const QString &remoteUrl) const
+{
+    return GitRepository::DefaultCloneFolderName(remoteUrl);
+}
+
+void AppController::CloneRepository(
+    const QString &remoteUrl,
+    const QString &parentDirectory,
+    const QString &folderName)
+{
+    if (cloneInProgress || fetchInProgress || pullInProgress || pushInProgress) {
+        return;
+    }
+
+    const QString normalizedRemoteUrl = GitRepository::NormalizeRemoteUrl(remoteUrl);
+    if (normalizedRemoteUrl.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Remote URL is invalid."));
+        return;
+    }
+
+    const QString trimmedParentDirectory = parentDirectory.trimmed();
+    if (trimmedParentDirectory.isEmpty() || !QFileInfo(trimmedParentDirectory).isDir()) {
+        SetStatusMessage(QStringLiteral("Clone parent folder is invalid."));
+        return;
+    }
+
+    const QString trimmedFolderName = folderName.trimmed();
+    if (trimmedFolderName.isEmpty()
+        || trimmedFolderName.contains(QLatin1Char('/'))
+        || trimmedFolderName.contains(QLatin1Char('\\'))) {
+        SetStatusMessage(QStringLiteral("Clone folder name is invalid."));
+        return;
+    }
+
+    const QString targetPath = QDir(trimmedParentDirectory).filePath(trimmedFolderName);
+    if (QFileInfo(targetPath).exists()) {
+        SetStatusMessage(QStringLiteral("Clone target folder already exists."));
+        return;
+    }
+
+    SetCloneInProgress(true);
+    SetStatusMessage(QStringLiteral("Cloning repository..."));
+
+    auto *watcher = new QFutureWatcher<CloneOperationResult>(this);
+    connect(watcher, &QFutureWatcher<CloneOperationResult>::finished, this, [this, watcher]() {
+        const CloneOperationResult cloneResult = watcher->result();
+        watcher->deleteLater();
+
+        SetCloneInProgress(false);
+
+        if (!cloneResult.commandResult.Success()) {
+            const QString output = (cloneResult.commandResult.standardError.trimmed().isEmpty()
+                ? cloneResult.commandResult.standardOutput
+                : cloneResult.commandResult.standardError).trimmed();
+            if (cloneResult.commandResult.timedOut) {
+                SetStatusMessage(QStringLiteral("Clone timed out. Check your network connection or Git credentials."));
+                return;
+            }
+
+            SetStatusMessage(output.isEmpty()
+                ? QStringLiteral("Failed to clone repository.")
+                : output);
+            return;
+        }
+
+        OpenRepositoryPath(cloneResult.targetPath);
+        SetStatusMessage(QStringLiteral("Repository cloned."));
+        emit cloneCompleted();
+    });
+
+    watcher->setFuture(QtConcurrent::run([normalizedRemoteUrl, trimmedParentDirectory, trimmedFolderName, targetPath]() {
+        GitRepository repository;
+        CloneOperationResult result;
+        result.targetPath = targetPath;
+        result.commandResult = repository.CloneRepository(
+            normalizedRemoteUrl,
+            trimmedParentDirectory,
+            trimmedFolderName);
+        return result;
+    }));
+}
+
 bool AppController::ConnectRepository(const QString &remoteUrl)
 {
     if (repositoryPath.isEmpty()) {
@@ -1275,6 +1368,16 @@ void AppController::SetPullInProgress(bool value)
 
     pullInProgress = value;
     emit PullInProgressChanged();
+}
+
+void AppController::SetCloneInProgress(bool value)
+{
+    if (cloneInProgress == value) {
+        return;
+    }
+
+    cloneInProgress = value;
+    emit CloneInProgressChanged();
 }
 
 void AppController::SetHistoryVisible(bool value)

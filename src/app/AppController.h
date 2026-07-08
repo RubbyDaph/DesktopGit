@@ -36,6 +36,7 @@ class AppController : public QObject
     Q_PROPERTY(bool pushInProgress READ PushInProgress NOTIFY PushInProgressChanged)
     Q_PROPERTY(bool fetchInProgress READ FetchInProgress NOTIFY FetchInProgressChanged)
     Q_PROPERTY(bool pullInProgress READ PullInProgress NOTIFY PullInProgressChanged)
+    Q_PROPERTY(bool cloneInProgress READ CloneInProgress NOTIFY CloneInProgressChanged)
     Q_PROPERTY(bool historyVisible READ HistoryVisible NOTIFY HistoryVisibleChanged)
     Q_PROPERTY(bool branchesVisible READ BranchesVisible NOTIFY BranchesVisibleChanged)
     Q_PROPERTY(QString selectedBranchName READ SelectedBranchName NOTIFY SelectedBranchChanged)
@@ -79,6 +80,7 @@ public:
     [[nodiscard]] bool PushInProgress() const;
     [[nodiscard]] bool FetchInProgress() const;
     [[nodiscard]] bool PullInProgress() const;
+    [[nodiscard]] bool CloneInProgress() const;
     [[nodiscard]] bool HistoryVisible() const;
     [[nodiscard]] bool BranchesVisible() const;
     [[nodiscard]] QString SelectedBranchName() const;
@@ -114,6 +116,11 @@ public:
     Q_INVOKABLE void PushRepository();
     Q_INVOKABLE void FetchRepository();
     Q_INVOKABLE void PullRepository();
+    Q_INVOKABLE QString DefaultCloneFolderName(const QString &remoteUrl) const;
+    Q_INVOKABLE void CloneRepository(
+        const QString &remoteUrl,
+        const QString &parentDirectory,
+        const QString &folderName);
     Q_INVOKABLE bool ConnectRepository(const QString &remoteUrl);
     Q_INVOKABLE void OpenHistory();
     Q_INVOKABLE void CloseHistory();
@@ -145,6 +152,7 @@ signals:
     void PushInProgressChanged();
     void FetchInProgressChanged();
     void PullInProgressChanged();
+    void CloneInProgressChanged();
     void HistoryVisibleChanged();
     void BranchesVisibleChanged();
     void SelectedBranchChanged();
@@ -156,6 +164,7 @@ signals:
     void pushCompleted();
     void fetchCompleted();
     void pullCompleted();
+    void cloneCompleted();
 
 private:
     void SetGitAvailable(bool value);
@@ -174,6 +183,7 @@ private:
     void SetPushInProgress(bool value);
     void SetFetchInProgress(bool value);
     void SetPullInProgress(bool value);
+    void SetCloneInProgress(bool value);
     void SetHistoryVisible(bool value);
     void SetBranchesVisible(bool value);
     void SetSelectedBranchName(const QString &value);
@@ -210,6 +220,7 @@ private:
     bool pushInProgress = false;
     bool fetchInProgress = false;
     bool pullInProgress = false;
+    bool cloneInProgress = false;
     bool historyVisible = false;
     bool branchesVisible = false;
     QString selectedBranchName;

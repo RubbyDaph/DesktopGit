@@ -62,6 +62,7 @@ public:
     QString Path() const;
 
     static QString NormalizeRemoteUrl(const QString &url);
+    static QString DefaultCloneFolderName(const QString &url);
 
     bool IsInitialized() const;
     bool IsValid() const;
@@ -79,6 +80,10 @@ public:
     GitCommandResult Push() const;
     GitCommandResult Fetch() const;
     GitCommandResult Pull() const;
+    GitCommandResult CloneRepository(
+        const QString &remoteUrl,
+        const QString &parentDirectory,
+        const QString &folderName) const;
     QList<GitBranchInfo> LocalBranches() const;
     bool ValidateBranchName(const QString &branchName) const;
     GitCommandResult CheckoutBranch(const QString &branchName) const;
