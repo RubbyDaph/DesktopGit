@@ -246,11 +246,6 @@ ApplicationWindow {
                 }
 
                 AppButton {
-                    text: qsTr("Use Current")
-                    onClicked: repositoryPickerDialog.selectedFolder = repositoryPickerDialog.currentFolder
-                }
-
-                AppButton {
                     text: qsTr("Cancel")
                     onClicked: repositoryPickerDialog.close()
                 }
@@ -525,11 +520,6 @@ ApplicationWindow {
                         cloneRepositoryDialog.parentFolder(cloneRepositoryDialog.currentFolder))
                 }
 
-                AppButton {
-                    text: qsTr("Use Current")
-                    enabled: !appController.cloneInProgress
-                    onClicked: cloneRepositoryDialog.selectedParentFolder = cloneRepositoryDialog.currentFolder
-                }
             }
 
             Rectangle {
@@ -862,14 +852,13 @@ ApplicationWindow {
             AppButton {
                 id: refreshRepositoryButton
 
-                text: appController.repositoryPath.length > 0 ? qsTr("Refresh") : qsTr("Check Git")
+                text: qsTr("Refresh")
+                visible: appController.repositoryPath.length > 0
                 enabled: !appController.cloneInProgress
                     && !appController.fetchInProgress
                     && !appController.pullInProgress
                     && !appController.pushInProgress
-                onClicked: appController.repositoryPath.length > 0
-                    ? appController.RefreshRepository()
-                    : appController.CheckGitAvailable()
+                onClicked: appController.RefreshRepository()
             }
 
             AppButton {
