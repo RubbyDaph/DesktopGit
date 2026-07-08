@@ -590,6 +590,18 @@ ApplicationWindow {
             }
 
             AppButton {
+                id: openBranchesButton
+
+                text: qsTr("Branches")
+                enabled: appController.repositoryPath.length > 0
+                    && appController.repositoryInitialized
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: appController.OpenBranches()
+            }
+
+            AppButton {
                 id: fetchRepositoryButton
 
                 text: qsTr("Fetch")
@@ -621,7 +633,7 @@ ApplicationWindow {
         id: mainContentStack
 
         anchors.fill: parent
-        currentIndex: appController.historyVisible ? 1 : 0
+        currentIndex: appController.branchesVisible ? 2 : appController.historyVisible ? 1 : 0
 
         WorkingTreeView {
             id: workingTreePage
@@ -652,6 +664,19 @@ ApplicationWindow {
             removedLineColor: window.removedLineColor
             addedTextColor: window.addedTextColor
             removedTextColor: window.removedTextColor
+            accentColor: window.accentColor
+        }
+
+        BranchesView {
+            id: branchesPage
+
+            controller: appController
+            panelColor: window.panelColor
+            panelRaisedColor: window.panelRaisedColor
+            borderColor: window.borderColor
+            textColor: window.textColor
+            mutedTextColor: window.mutedTextColor
+            addedTextColor: window.addedTextColor
             accentColor: window.accentColor
         }
     }

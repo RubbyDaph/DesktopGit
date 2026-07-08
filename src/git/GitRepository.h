@@ -23,6 +23,13 @@ struct GitBranchSyncStatus
     bool hasUpstream = false;
 };
 
+struct GitBranchInfo
+{
+    QString name;
+    QString upstream;
+    bool isCurrent = false;
+};
+
 struct GitCommitInfo
 {
     QString hash;
@@ -72,6 +79,10 @@ public:
     GitCommandResult Push() const;
     GitCommandResult Fetch() const;
     GitCommandResult Pull() const;
+    QList<GitBranchInfo> LocalBranches() const;
+    bool ValidateBranchName(const QString &branchName) const;
+    GitCommandResult CheckoutBranch(const QString &branchName) const;
+    GitCommandResult CreateBranch(const QString &branchName) const;
     GitBranchSyncStatus BranchSyncStatus() const;
     QList<GitCommitInfo> CommitHistory(int limit = 100) const;
     QList<GitCommitFile> CommitFiles(const QString &commitHash) const;

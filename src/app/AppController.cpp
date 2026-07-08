@@ -139,6 +139,16 @@ bool AppController::HistoryVisible() const
     return historyVisible;
 }
 
+bool AppController::BranchesVisible() const
+{
+    return branchesVisible;
+}
+
+QString AppController::SelectedBranchName() const
+{
+    return selectedBranchName;
+}
+
 QString AppController::SelectedCommitHash() const
 {
     return selectedCommitHash;
@@ -192,6 +202,11 @@ QString AppController::CurrentDiff() const
 StatusFileModel *AppController::StatusFiles()
 {
     return &statusFileModel;
+}
+
+BranchModel *AppController::Branches()
+{
+    return &branchModel;
 }
 
 CommitHistoryModel *AppController::CommitHistory()
@@ -250,10 +265,13 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        branchModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
+        SetBranchesVisible(false);
+        SetSelectedBranchName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Selected path is not a directory."));
@@ -262,10 +280,13 @@ void AppController::OpenRepositoryPath(const QString &path)
 
     SetRepositoryPath(path);
     gitRepository.SetPath(path);
+    branchModel.Clear();
     commitHistoryModel.Clear();
     commitFileModel.Clear();
     ClearCommitSelection();
     SetHistoryVisible(false);
+    SetBranchesVisible(false);
+    SetSelectedBranchName(QString());
     RefreshRepositoryConnectionState();
 
     if (!repositoryInitialized) {
@@ -274,10 +295,13 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        branchModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
+        SetBranchesVisible(false);
+        SetSelectedBranchName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened. Repository is not initialized."));
@@ -290,10 +314,13 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetSelectedFilePath(QString());
         SetCurrentDiff(QString());
         statusFileModel.Clear();
+        branchModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
+        SetBranchesVisible(false);
+        SetSelectedBranchName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened, but it is not a Git work tree."));
@@ -321,10 +348,13 @@ void AppController::RefreshRepository()
 {
     if (repositoryPath.isEmpty()) {
         statusFileModel.Clear();
+        branchModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
+        SetBranchesVisible(false);
+        SetSelectedBranchName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -336,10 +366,13 @@ void AppController::RefreshRepository()
     RefreshRepositoryConnectionState();
     if (!repositoryInitialized) {
         statusFileModel.Clear();
+        branchModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
+        SetBranchesVisible(false);
+        SetSelectedBranchName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -366,6 +399,9 @@ void AppController::RefreshRepository()
     emit StagedFileCountChanged();
 
     SetCurrentBranch(gitRepository.CurrentBranch());
+    if (branchesVisible) {
+        RefreshBranches();
+    }
     RefreshBranchSyncStatus();
     SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
 }
@@ -814,6 +850,7 @@ void AppController::OpenHistory()
         return;
     }
 
+    SetBranchesVisible(false);
     SetHistoryVisible(true);
     RefreshCommitHistory();
 }
@@ -821,6 +858,139 @@ void AppController::OpenHistory()
 void AppController::CloseHistory()
 {
     SetHistoryVisible(false);
+}
+
+void AppController::OpenBranches()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    SetHistoryVisible(false);
+    SetBranchesVisible(true);
+    RefreshBranches();
+}
+
+void AppController::CloseBranches()
+{
+    SetBranchesVisible(false);
+}
+
+void AppController::RefreshBranches()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        branchModel.Clear();
+        SetSelectedBranchName(QString());
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    const QList<GitBranchInfo> branches = gitRepository.LocalBranches();
+    branchModel.SetBranches(branches);
+
+    if (branches.isEmpty()) {
+        SetSelectedBranchName(QString());
+        SetStatusMessage(QStringLiteral("No local branches yet."));
+        return;
+    }
+
+    if (!branchModel.ContainsBranch(selectedBranchName)) {
+        const QString currentBranchName = gitRepository.CurrentBranch();
+        if (branchModel.ContainsBranch(currentBranchName)) {
+            SetSelectedBranchName(currentBranchName);
+        } else {
+            SetSelectedBranchName(branches.first().name);
+        }
+    }
+
+    SetStatusMessage(QStringLiteral("%1 local branch(es) loaded.").arg(branches.size()));
+}
+
+void AppController::SelectBranch(const QString &name)
+{
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty() || !branchModel.ContainsBranch(trimmedName)) {
+        SetSelectedBranchName(QString());
+        return;
+    }
+
+    SetSelectedBranchName(trimmedName);
+}
+
+void AppController::CheckoutSelectedBranch()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    if (selectedBranchName.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a branch first."));
+        return;
+    }
+
+    if (selectedBranchName == currentBranch) {
+        SetStatusMessage(QStringLiteral("Branch %1 is already checked out.").arg(selectedBranchName));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.CheckoutBranch(selectedBranchName);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to checkout branch.")
+            : output);
+        return;
+    }
+
+    SetCurrentBranch(gitRepository.CurrentBranch());
+    RefreshRepository();
+    RefreshBranches();
+    SetStatusMessage(QStringLiteral("Checked out %1.").arg(currentBranch));
+}
+
+void AppController::CreateBranch(const QString &name)
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Branch name cannot be empty."));
+        return;
+    }
+
+    if (!gitRepository.ValidateBranchName(trimmedName)) {
+        SetStatusMessage(QStringLiteral("Branch name is invalid."));
+        return;
+    }
+
+    if (branchModel.ContainsBranch(trimmedName)) {
+        SetStatusMessage(QStringLiteral("Branch %1 already exists.").arg(trimmedName));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.CreateBranch(trimmedName);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to create branch.")
+            : output);
+        return;
+    }
+
+    SetCurrentBranch(gitRepository.CurrentBranch());
+    SetSelectedBranchName(currentBranch);
+    RefreshRepository();
+    RefreshBranches();
+    SetStatusMessage(QStringLiteral("Created and checked out %1.").arg(currentBranch));
 }
 
 void AppController::RefreshCommitHistory()
@@ -1115,6 +1285,26 @@ void AppController::SetHistoryVisible(bool value)
 
     historyVisible = value;
     emit HistoryVisibleChanged();
+}
+
+void AppController::SetBranchesVisible(bool value)
+{
+    if (branchesVisible == value) {
+        return;
+    }
+
+    branchesVisible = value;
+    emit BranchesVisibleChanged();
+}
+
+void AppController::SetSelectedBranchName(const QString &value)
+{
+    if (selectedBranchName == value) {
+        return;
+    }
+
+    selectedBranchName = value;
+    emit SelectedBranchChanged();
 }
 
 void AppController::SetSelectedCommitHash(const QString &value)

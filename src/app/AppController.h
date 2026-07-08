@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BranchModel.h"
 #include "CommitFileModel.h"
 #include "CommitHistoryModel.h"
 #include "GitCommandRunner.h"
@@ -36,6 +37,8 @@ class AppController : public QObject
     Q_PROPERTY(bool fetchInProgress READ FetchInProgress NOTIFY FetchInProgressChanged)
     Q_PROPERTY(bool pullInProgress READ PullInProgress NOTIFY PullInProgressChanged)
     Q_PROPERTY(bool historyVisible READ HistoryVisible NOTIFY HistoryVisibleChanged)
+    Q_PROPERTY(bool branchesVisible READ BranchesVisible NOTIFY BranchesVisibleChanged)
+    Q_PROPERTY(QString selectedBranchName READ SelectedBranchName NOTIFY SelectedBranchChanged)
     Q_PROPERTY(QString selectedCommitHash READ SelectedCommitHash NOTIFY SelectedCommitChanged)
     Q_PROPERTY(QString selectedCommitShortHash READ SelectedCommitShortHash NOTIFY SelectedCommitChanged)
     Q_PROPERTY(QString selectedCommitSubject READ SelectedCommitSubject NOTIFY SelectedCommitChanged)
@@ -47,6 +50,7 @@ class AppController : public QObject
     Q_PROPERTY(QString selectedCommitDiff READ SelectedCommitDiff NOTIFY SelectedCommitDiffChanged)
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
+    Q_PROPERTY(BranchModel* branchModel READ Branches CONSTANT)
     Q_PROPERTY(CommitHistoryModel* commitHistoryModel READ CommitHistory CONSTANT)
     Q_PROPERTY(CommitFileModel* commitFileModel READ CommitFiles CONSTANT)
 
@@ -76,6 +80,8 @@ public:
     [[nodiscard]] bool FetchInProgress() const;
     [[nodiscard]] bool PullInProgress() const;
     [[nodiscard]] bool HistoryVisible() const;
+    [[nodiscard]] bool BranchesVisible() const;
+    [[nodiscard]] QString SelectedBranchName() const;
     [[nodiscard]] QString SelectedCommitHash() const;
     [[nodiscard]] QString SelectedCommitShortHash() const;
     [[nodiscard]] QString SelectedCommitSubject() const;
@@ -87,6 +93,7 @@ public:
     [[nodiscard]] QString SelectedCommitDiff() const;
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
+    [[nodiscard]] class BranchModel *Branches();
     [[nodiscard]] class CommitHistoryModel *CommitHistory();
     [[nodiscard]] class CommitFileModel *CommitFiles();
 
@@ -110,6 +117,12 @@ public:
     Q_INVOKABLE bool ConnectRepository(const QString &remoteUrl);
     Q_INVOKABLE void OpenHistory();
     Q_INVOKABLE void CloseHistory();
+    Q_INVOKABLE void OpenBranches();
+    Q_INVOKABLE void CloseBranches();
+    Q_INVOKABLE void RefreshBranches();
+    Q_INVOKABLE void SelectBranch(const QString &name);
+    Q_INVOKABLE void CheckoutSelectedBranch();
+    Q_INVOKABLE void CreateBranch(const QString &name);
     Q_INVOKABLE void RefreshCommitHistory();
     Q_INVOKABLE void SelectCommit(const QString &hash);
     Q_INVOKABLE void SelectCommitFile(const QString &path);
@@ -133,6 +146,8 @@ signals:
     void FetchInProgressChanged();
     void PullInProgressChanged();
     void HistoryVisibleChanged();
+    void BranchesVisibleChanged();
+    void SelectedBranchChanged();
     void SelectedCommitChanged();
     void SelectedCommitFileChanged();
     void SelectedCommitDiffChanged();
@@ -160,6 +175,8 @@ private:
     void SetFetchInProgress(bool value);
     void SetPullInProgress(bool value);
     void SetHistoryVisible(bool value);
+    void SetBranchesVisible(bool value);
+    void SetSelectedBranchName(const QString &value);
     void SetSelectedCommitHash(const QString &value);
     void SetSelectedCommitDetails(const GitCommitInfo &commit);
     void SetSelectedCommitFilePath(const QString &value);
@@ -169,6 +186,7 @@ private:
     GitCommandRunner gitCommandRunner;
     GitRepository gitRepository;
     class StatusFileModel statusFileModel;
+    class BranchModel branchModel;
     class CommitHistoryModel commitHistoryModel;
     class CommitFileModel commitFileModel;
     bool gitAvailable = false;
@@ -193,6 +211,8 @@ private:
     bool fetchInProgress = false;
     bool pullInProgress = false;
     bool historyVisible = false;
+    bool branchesVisible = false;
+    QString selectedBranchName;
     QString selectedCommitHash;
     QString selectedCommitShortHash;
     QString selectedCommitSubject;

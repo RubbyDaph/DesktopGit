@@ -1,4 +1,5 @@
 #include "AppController.h"
+#include "BranchModel.h"
 #include "CommitFileModel.h"
 #include "CommitHistoryModel.h"
 #include "GitCommandRunner.h"
@@ -50,6 +51,7 @@ private slots:
     void PopulateStatusFileModel();
     void ClearStatusFileModel();
     void SelectStatusFilesInModel();
+    void PopulateBranchModel();
     void RunGitVersionCommand();
     void RunGitCommandWithEnvironmentOverride();
     void NormalizeRemoteUrls();
@@ -74,6 +76,8 @@ private slots:
     void PullRepositoryChanges();
     void FetchAndPullRepositoryFromController();
     void ReadBranchSyncStatus();
+    void ReadAndChangeLocalBranches();
+    void ManageBranchesFromController();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -183,6 +187,37 @@ void TestDesktopGitCore::SelectStatusFilesInModel()
     model.ToggleSelected(QStringLiteral("first.txt"));
     model.SetFiles({secondFile});
     QCOMPARE(model.SelectedCount(), 0);
+}
+
+void TestDesktopGitCore::PopulateBranchModel()
+{
+    BranchModel model;
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    GitBranchInfo mainBranch;
+    mainBranch.name = QStringLiteral("main");
+    mainBranch.upstream = QStringLiteral("origin/main");
+    mainBranch.isCurrent = true;
+
+    GitBranchInfo featureBranch;
+    featureBranch.name = QStringLiteral("feature/test");
+
+    model.SetBranches({mainBranch, featureBranch});
+
+    QCOMPARE(resetSpy.count(), 1);
+    QCOMPARE(model.rowCount(), 2);
+    QVERIFY(model.ContainsBranch(QStringLiteral("main")));
+    QVERIFY(model.ContainsBranch(QStringLiteral("feature/test")));
+    QVERIFY(!model.ContainsBranch(QStringLiteral("missing")));
+
+    const QModelIndex index = model.index(0, 0);
+    QCOMPARE(model.data(index, BranchModel::NameRole).toString(), QStringLiteral("main"));
+    QCOMPARE(model.data(index, BranchModel::CurrentRole).toBool(), true);
+    QCOMPARE(model.data(index, BranchModel::UpstreamRole).toString(), QStringLiteral("origin/main"));
+
+    model.Clear();
+    QCOMPARE(resetSpy.count(), 2);
+    QCOMPARE(model.rowCount(), 0);
 }
 
 void TestDesktopGitCore::RunGitVersionCommand()
@@ -1358,6 +1393,110 @@ void TestDesktopGitCore::ReadBranchSyncStatus()
     QCOMPARE(syncStatus.hasUpstream, true);
     QCOMPARE(syncStatus.ahead, 0);
     QCOMPARE(syncStatus.behind, 0);
+}
+
+void TestDesktopGitCore::ReadAndChangeLocalBranches()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(QDir(repositoryPath).filePath(QStringLiteral("file.txt")), QStringLiteral("main line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const QString initialBranch = repository.CurrentBranch();
+    QVERIFY(!initialBranch.isEmpty());
+    QVERIFY(repository.ValidateBranchName(QStringLiteral("feature/test")));
+    QVERIFY(!repository.ValidateBranchName(QStringLiteral("bad branch name")));
+
+    QVERIFY2(repository.CreateBranch(QStringLiteral("feature/test")).Success(), "git checkout -b failed");
+    QCOMPARE(repository.CurrentBranch(), QStringLiteral("feature/test"));
+
+    QList<GitBranchInfo> branches = repository.LocalBranches();
+    QCOMPARE(branches.size(), 2);
+
+    bool foundInitialBranch = false;
+    bool foundFeatureBranch = false;
+    for (const GitBranchInfo &branch : branches) {
+        if (branch.name == initialBranch) {
+            foundInitialBranch = true;
+            QCOMPARE(branch.isCurrent, false);
+        } else if (branch.name == QStringLiteral("feature/test")) {
+            foundFeatureBranch = true;
+            QCOMPARE(branch.isCurrent, true);
+        }
+    }
+
+    QVERIFY(foundInitialBranch);
+    QVERIFY(foundFeatureBranch);
+
+    QVERIFY2(repository.CheckoutBranch(initialBranch).Success(), "git checkout initial branch failed");
+    QCOMPARE(repository.CurrentBranch(), initialBranch);
+
+    branches = repository.LocalBranches();
+    for (const GitBranchInfo &branch : branches) {
+        if (branch.name == initialBranch) {
+            QCOMPARE(branch.isCurrent, true);
+        }
+    }
+}
+
+void TestDesktopGitCore::ManageBranchesFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(QDir(repositoryPath).filePath(QStringLiteral("file.txt")), QStringLiteral("main line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    const QString initialBranch = controller.CurrentBranch();
+    QVERIFY(!initialBranch.isEmpty());
+
+    controller.OpenBranches();
+    QCOMPARE(controller.BranchesVisible(), true);
+    QCOMPARE(controller.HistoryVisible(), false);
+    QCOMPARE(controller.Branches()->rowCount(), 1);
+    QCOMPARE(controller.SelectedBranchName(), initialBranch);
+
+    controller.CreateBranch(QStringLiteral("feature/controller"));
+    QCOMPARE(controller.CurrentBranch(), QStringLiteral("feature/controller"));
+    QCOMPARE(controller.SelectedBranchName(), QStringLiteral("feature/controller"));
+    QCOMPARE(controller.Branches()->rowCount(), 2);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Created and checked out feature/controller."));
+
+    controller.CreateBranch(QStringLiteral("bad branch name"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Branch name is invalid."));
+
+    controller.SelectBranch(initialBranch);
+    QCOMPARE(controller.SelectedBranchName(), initialBranch);
+
+    controller.CheckoutSelectedBranch();
+    QCOMPARE(controller.CurrentBranch(), initialBranch);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Checked out %1.").arg(initialBranch));
+
+    controller.SelectBranch(QStringLiteral("missing"));
+    QCOMPARE(controller.SelectedBranchName(), QString());
 }
 
 QTEST_MAIN(TestDesktopGitCore)

@@ -488,6 +488,88 @@ GitCommandResult GitRepository::Pull() const
         remoteOperationTimeoutMs);
 }
 
+QList<GitBranchInfo> GitRepository::LocalBranches() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("for-each-ref"),
+        QStringLiteral("--format=%(refname:short)%09%(upstream:short)%09%(HEAD)"),
+        QStringLiteral("refs/heads")
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    QList<GitBranchInfo> branches;
+    const QStringList lines = result.standardOutput.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    branches.reserve(lines.size());
+
+    for (const QString &line : lines) {
+        const QStringList fields = line.split(QLatin1Char('\t'));
+        if (fields.size() != 3) {
+            continue;
+        }
+
+        GitBranchInfo branch;
+        branch.name = fields.at(0).trimmed();
+        branch.upstream = fields.at(1).trimmed();
+        branch.isCurrent = fields.at(2).trimmed() == QStringLiteral("*");
+
+        if (!branch.name.isEmpty()) {
+            branches.append(branch);
+        }
+    }
+
+    return branches;
+}
+
+bool GitRepository::ValidateBranchName(const QString &branchName) const
+{
+    const QString trimmedBranchName = branchName.trimmed();
+    if (trimmedBranchName.isEmpty()) {
+        return false;
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("check-ref-format"),
+        QStringLiteral("--branch"),
+        trimmedBranchName
+    }, path);
+
+    return result.Success();
+}
+
+GitCommandResult GitRepository::CheckoutBranch(const QString &branchName) const
+{
+    const QString trimmedBranchName = branchName.trimmed();
+    if (path.isEmpty() || trimmedBranchName.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("checkout"),
+        trimmedBranchName
+    }, path);
+}
+
+GitCommandResult GitRepository::CreateBranch(const QString &branchName) const
+{
+    const QString trimmedBranchName = branchName.trimmed();
+    if (path.isEmpty() || trimmedBranchName.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("checkout"),
+        QStringLiteral("-b"),
+        trimmedBranchName
+    }, path);
+}
+
 GitBranchSyncStatus GitRepository::BranchSyncStatus() const
 {
     GitBranchSyncStatus status;

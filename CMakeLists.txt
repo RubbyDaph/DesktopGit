@@ -77,12 +77,18 @@ set_source_files_properties(src/ui/views/WorkingTreeView.qml
         QT_RESOURCE_ALIAS WorkingTreeView.qml
 )
 
+set_source_files_properties(src/ui/views/BranchesView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS BranchesView.qml
+)
+
 qt_add_qml_module(desktop_git
     URI DesktopGit
     VERSION 1.0
     QML_FILES
         src/ui/Main.qml
         src/ui/components/AppButton.qml
+        src/ui/views/BranchesView.qml
         src/ui/views/CommitHistoryView.qml
         src/ui/views/WorkingTreeView.qml
 )
