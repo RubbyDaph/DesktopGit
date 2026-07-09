@@ -888,6 +888,19 @@ ApplicationWindow {
             }
 
             AppButton {
+                id: openStashButton
+
+                text: qsTr("Stash")
+                enabled: appController.repositoryPath.length > 0
+                    && appController.repositoryInitialized
+                    && !appController.cloneInProgress
+                    && !appController.fetchInProgress
+                    && !appController.pullInProgress
+                    && !appController.pushInProgress
+                onClicked: appController.OpenStash()
+            }
+
+            AppButton {
                 id: fetchRepositoryButton
 
                 text: qsTr("Fetch")
@@ -921,7 +934,10 @@ ApplicationWindow {
         id: mainContentStack
 
         anchors.fill: parent
-        currentIndex: appController.branchesVisible ? 2 : appController.historyVisible ? 1 : 0
+        currentIndex: appController.stashVisible ? 3
+            : appController.branchesVisible ? 2
+            : appController.historyVisible ? 1
+            : 0
 
         WorkingTreeView {
             id: workingTreePage
@@ -965,6 +981,19 @@ ApplicationWindow {
             textColor: window.textColor
             mutedTextColor: window.mutedTextColor
             addedTextColor: window.addedTextColor
+            accentColor: window.accentColor
+        }
+
+        StashView {
+            id: stashPage
+
+            controller: appController
+            panelColor: window.panelColor
+            panelRaisedColor: window.panelRaisedColor
+            borderColor: window.borderColor
+            textColor: window.textColor
+            mutedTextColor: window.mutedTextColor
+            removedTextColor: window.removedTextColor
             accentColor: window.accentColor
         }
     }

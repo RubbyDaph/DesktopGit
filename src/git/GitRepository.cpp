@@ -642,6 +642,127 @@ GitCommandResult GitRepository::CreateBranch(const QString &branchName) const
     }, path);
 }
 
+GitCommandResult GitRepository::StashPush(const QString &message) const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    const QString trimmedMessage = message.trimmed();
+    if (trimmedMessage.isEmpty()) {
+        return runner.Run({QStringLiteral("stash"), QStringLiteral("push")}, path);
+    }
+
+    return runner.Run({
+        QStringLiteral("stash"),
+        QStringLiteral("push"),
+        QStringLiteral("-m"),
+        trimmedMessage
+    }, path);
+}
+
+QList<GitStashInfo> GitRepository::Stashes() const
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    const GitCommandResult result = runner.Run({
+        QStringLiteral("stash"),
+        QStringLiteral("list"),
+        QStringLiteral("--format=%gd%x1f%gs")
+    }, path);
+
+    if (!result.Success()) {
+        return {};
+    }
+
+    QList<GitStashInfo> stashes;
+    const QStringList lines = result.standardOutput.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    stashes.reserve(lines.size());
+
+    for (const QString &line : lines) {
+        const QStringList fields = line.split(QChar(0x1f));
+        if (fields.size() != 2) {
+            continue;
+        }
+
+        GitStashInfo stash;
+        stash.name = fields.at(0).trimmed();
+
+        const int openBraceIndex = stash.name.indexOf(QStringLiteral("@{"));
+        const int closeBraceIndex = stash.name.indexOf(QLatin1Char('}'), openBraceIndex);
+        if (openBraceIndex >= 0 && closeBraceIndex > openBraceIndex + 2) {
+            bool indexOk = false;
+            const int index = stash.name.mid(openBraceIndex + 2, closeBraceIndex - openBraceIndex - 2).toInt(&indexOk);
+            if (indexOk) {
+                stash.index = index;
+            }
+        }
+
+        QString subject = fields.at(1).trimmed();
+        if (subject.startsWith(QStringLiteral("On "))) {
+            const int separatorIndex = subject.indexOf(QStringLiteral(": "));
+            if (separatorIndex > 3) {
+                stash.branch = subject.mid(3, separatorIndex - 3).trimmed();
+                stash.message = subject.mid(separatorIndex + 2).trimmed();
+            }
+        }
+
+        if (stash.message.isEmpty()) {
+            stash.message = subject;
+        }
+
+        if (!stash.name.isEmpty()) {
+            stashes.append(stash);
+        }
+    }
+
+    return stashes;
+}
+
+GitCommandResult GitRepository::StashApply(const QString &stashName) const
+{
+    const QString trimmedStashName = stashName.trimmed();
+    if (path.isEmpty() || trimmedStashName.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("stash"),
+        QStringLiteral("apply"),
+        trimmedStashName
+    }, path);
+}
+
+GitCommandResult GitRepository::StashPop(const QString &stashName) const
+{
+    const QString trimmedStashName = stashName.trimmed();
+    if (path.isEmpty() || trimmedStashName.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("stash"),
+        QStringLiteral("pop"),
+        trimmedStashName
+    }, path);
+}
+
+GitCommandResult GitRepository::StashDrop(const QString &stashName) const
+{
+    const QString trimmedStashName = stashName.trimmed();
+    if (path.isEmpty() || trimmedStashName.isEmpty()) {
+        return {};
+    }
+
+    return runner.Run({
+        QStringLiteral("stash"),
+        QStringLiteral("drop"),
+        trimmedStashName
+    }, path);
+}
+
 GitBranchSyncStatus GitRepository::BranchSyncStatus() const
 {
     GitBranchSyncStatus status;

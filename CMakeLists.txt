@@ -82,6 +82,11 @@ set_source_files_properties(src/ui/views/BranchesView.qml
         QT_RESOURCE_ALIAS BranchesView.qml
 )
 
+set_source_files_properties(src/ui/views/StashView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS StashView.qml
+)
+
 qt_add_qml_module(desktop_git
     URI DesktopGit
     VERSION 1.0
@@ -90,6 +95,7 @@ qt_add_qml_module(desktop_git
         src/ui/components/AppButton.qml
         src/ui/views/BranchesView.qml
         src/ui/views/CommitHistoryView.qml
+        src/ui/views/StashView.qml
         src/ui/views/WorkingTreeView.qml
 )
 

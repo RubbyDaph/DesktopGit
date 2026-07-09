@@ -30,6 +30,14 @@ struct GitBranchInfo
     bool isCurrent = false;
 };
 
+struct GitStashInfo
+{
+    int index = -1;
+    QString name;
+    QString branch;
+    QString message;
+};
+
 struct GitCommitInfo
 {
     QString hash;
@@ -88,6 +96,11 @@ public:
     bool ValidateBranchName(const QString &branchName) const;
     GitCommandResult CheckoutBranch(const QString &branchName) const;
     GitCommandResult CreateBranch(const QString &branchName) const;
+    GitCommandResult StashPush(const QString &message) const;
+    QList<GitStashInfo> Stashes() const;
+    GitCommandResult StashApply(const QString &stashName) const;
+    GitCommandResult StashPop(const QString &stashName) const;
+    GitCommandResult StashDrop(const QString &stashName) const;
     GitBranchSyncStatus BranchSyncStatus() const;
     QList<GitCommitInfo> CommitHistory(int limit = 100) const;
     QList<GitCommitFile> CommitFiles(const QString &commitHash) const;

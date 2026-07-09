@@ -5,6 +5,7 @@
 #include "CommitHistoryModel.h"
 #include "GitCommandRunner.h"
 #include "GitRepository.h"
+#include "StashModel.h"
 #include "StatusFileModel.h"
 
 #include <QObject>
@@ -39,7 +40,9 @@ class AppController : public QObject
     Q_PROPERTY(bool cloneInProgress READ CloneInProgress NOTIFY CloneInProgressChanged)
     Q_PROPERTY(bool historyVisible READ HistoryVisible NOTIFY HistoryVisibleChanged)
     Q_PROPERTY(bool branchesVisible READ BranchesVisible NOTIFY BranchesVisibleChanged)
+    Q_PROPERTY(bool stashVisible READ StashVisible NOTIFY StashVisibleChanged)
     Q_PROPERTY(QString selectedBranchName READ SelectedBranchName NOTIFY SelectedBranchChanged)
+    Q_PROPERTY(QString selectedStashName READ SelectedStashName NOTIFY SelectedStashChanged)
     Q_PROPERTY(QString selectedCommitHash READ SelectedCommitHash NOTIFY SelectedCommitChanged)
     Q_PROPERTY(QString selectedCommitShortHash READ SelectedCommitShortHash NOTIFY SelectedCommitChanged)
     Q_PROPERTY(QString selectedCommitSubject READ SelectedCommitSubject NOTIFY SelectedCommitChanged)
@@ -52,6 +55,7 @@ class AppController : public QObject
     Q_PROPERTY(QString currentDiff READ CurrentDiff NOTIFY CurrentDiffChanged)
     Q_PROPERTY(StatusFileModel* statusFileModel READ StatusFiles CONSTANT)
     Q_PROPERTY(BranchModel* branchModel READ Branches CONSTANT)
+    Q_PROPERTY(StashModel* stashModel READ Stashes CONSTANT)
     Q_PROPERTY(CommitHistoryModel* commitHistoryModel READ CommitHistory CONSTANT)
     Q_PROPERTY(CommitFileModel* commitFileModel READ CommitFiles CONSTANT)
 
@@ -83,7 +87,9 @@ public:
     [[nodiscard]] bool CloneInProgress() const;
     [[nodiscard]] bool HistoryVisible() const;
     [[nodiscard]] bool BranchesVisible() const;
+    [[nodiscard]] bool StashVisible() const;
     [[nodiscard]] QString SelectedBranchName() const;
+    [[nodiscard]] QString SelectedStashName() const;
     [[nodiscard]] QString SelectedCommitHash() const;
     [[nodiscard]] QString SelectedCommitShortHash() const;
     [[nodiscard]] QString SelectedCommitSubject() const;
@@ -96,6 +102,7 @@ public:
     [[nodiscard]] QString CurrentDiff() const;
     [[nodiscard]] class StatusFileModel *StatusFiles();
     [[nodiscard]] class BranchModel *Branches();
+    [[nodiscard]] class StashModel *Stashes();
     [[nodiscard]] class CommitHistoryModel *CommitHistory();
     [[nodiscard]] class CommitFileModel *CommitFiles();
 
@@ -130,6 +137,14 @@ public:
     Q_INVOKABLE void SelectBranch(const QString &name);
     Q_INVOKABLE void CheckoutSelectedBranch();
     Q_INVOKABLE void CreateBranch(const QString &name);
+    Q_INVOKABLE void OpenStash();
+    Q_INVOKABLE void CloseStash();
+    Q_INVOKABLE void RefreshStashes();
+    Q_INVOKABLE void SelectStash(const QString &name);
+    Q_INVOKABLE void StashPush(const QString &message);
+    Q_INVOKABLE void ApplySelectedStash();
+    Q_INVOKABLE void PopSelectedStash();
+    Q_INVOKABLE void DropSelectedStash();
     Q_INVOKABLE void RefreshCommitHistory();
     Q_INVOKABLE void SelectCommit(const QString &hash);
     Q_INVOKABLE void SelectCommitFile(const QString &path);
@@ -155,7 +170,9 @@ signals:
     void CloneInProgressChanged();
     void HistoryVisibleChanged();
     void BranchesVisibleChanged();
+    void StashVisibleChanged();
     void SelectedBranchChanged();
+    void SelectedStashChanged();
     void SelectedCommitChanged();
     void SelectedCommitFileChanged();
     void SelectedCommitDiffChanged();
@@ -186,7 +203,9 @@ private:
     void SetCloneInProgress(bool value);
     void SetHistoryVisible(bool value);
     void SetBranchesVisible(bool value);
+    void SetStashVisible(bool value);
     void SetSelectedBranchName(const QString &value);
+    void SetSelectedStashName(const QString &value);
     void SetSelectedCommitHash(const QString &value);
     void SetSelectedCommitDetails(const GitCommitInfo &commit);
     void SetSelectedCommitFilePath(const QString &value);
@@ -197,6 +216,7 @@ private:
     GitRepository gitRepository;
     class StatusFileModel statusFileModel;
     class BranchModel branchModel;
+    class StashModel stashModel;
     class CommitHistoryModel commitHistoryModel;
     class CommitFileModel commitFileModel;
     bool gitAvailable = false;
@@ -223,7 +243,9 @@ private:
     bool cloneInProgress = false;
     bool historyVisible = false;
     bool branchesVisible = false;
+    bool stashVisible = false;
     QString selectedBranchName;
+    QString selectedStashName;
     QString selectedCommitHash;
     QString selectedCommitShortHash;
     QString selectedCommitSubject;

@@ -155,9 +155,19 @@ bool AppController::BranchesVisible() const
     return branchesVisible;
 }
 
+bool AppController::StashVisible() const
+{
+    return stashVisible;
+}
+
 QString AppController::SelectedBranchName() const
 {
     return selectedBranchName;
+}
+
+QString AppController::SelectedStashName() const
+{
+    return selectedStashName;
 }
 
 QString AppController::SelectedCommitHash() const
@@ -220,6 +230,11 @@ BranchModel *AppController::Branches()
     return &branchModel;
 }
 
+StashModel *AppController::Stashes()
+{
+    return &stashModel;
+}
+
 CommitHistoryModel *AppController::CommitHistory()
 {
     return &commitHistoryModel;
@@ -277,12 +292,15 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetCurrentDiff(QString());
         statusFileModel.Clear();
         branchModel.Clear();
+        stashModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
         SetBranchesVisible(false);
+        SetStashVisible(false);
         SetSelectedBranchName(QString());
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Selected path is not a directory."));
@@ -292,12 +310,15 @@ void AppController::OpenRepositoryPath(const QString &path)
     SetRepositoryPath(path);
     gitRepository.SetPath(path);
     branchModel.Clear();
+    stashModel.Clear();
     commitHistoryModel.Clear();
     commitFileModel.Clear();
     ClearCommitSelection();
     SetHistoryVisible(false);
     SetBranchesVisible(false);
+    SetStashVisible(false);
     SetSelectedBranchName(QString());
+    SetSelectedStashName(QString());
     RefreshRepositoryConnectionState();
 
     if (!repositoryInitialized) {
@@ -307,12 +328,15 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetCurrentDiff(QString());
         statusFileModel.Clear();
         branchModel.Clear();
+        stashModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
         SetBranchesVisible(false);
+        SetStashVisible(false);
         SetSelectedBranchName(QString());
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened. Repository is not initialized."));
@@ -326,12 +350,15 @@ void AppController::OpenRepositoryPath(const QString &path)
         SetCurrentDiff(QString());
         statusFileModel.Clear();
         branchModel.Clear();
+        stashModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
         SetBranchesVisible(false);
+        SetStashVisible(false);
         SetSelectedBranchName(QString());
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetStatusMessage(QStringLiteral("Folder opened, but it is not a Git work tree."));
@@ -360,12 +387,15 @@ void AppController::RefreshRepository()
     if (repositoryPath.isEmpty()) {
         statusFileModel.Clear();
         branchModel.Clear();
+        stashModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
         SetBranchesVisible(false);
+        SetStashVisible(false);
         SetSelectedBranchName(QString());
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -378,12 +408,15 @@ void AppController::RefreshRepository()
     if (!repositoryInitialized) {
         statusFileModel.Clear();
         branchModel.Clear();
+        stashModel.Clear();
         commitHistoryModel.Clear();
         commitFileModel.Clear();
         ClearCommitSelection();
         SetHistoryVisible(false);
         SetBranchesVisible(false);
+        SetStashVisible(false);
         SetSelectedBranchName(QString());
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -395,6 +428,9 @@ void AppController::RefreshRepository()
 
     if (!gitRepository.IsValid()) {
         statusFileModel.Clear();
+        stashModel.Clear();
+        SetStashVisible(false);
+        SetSelectedStashName(QString());
         emit SelectedFilesChanged();
         emit StagedFileCountChanged();
         SetSelectedFilePath(QString());
@@ -412,6 +448,9 @@ void AppController::RefreshRepository()
     SetCurrentBranch(gitRepository.CurrentBranch());
     if (branchesVisible) {
         RefreshBranches();
+    }
+    if (stashVisible) {
+        RefreshStashes();
     }
     RefreshBranchSyncStatus();
     SetStatusMessage(QStringLiteral("%1 changed file(s).").arg(files.size()));
@@ -943,8 +982,9 @@ void AppController::OpenHistory()
         return;
     }
 
-    SetBranchesVisible(false);
     SetHistoryVisible(true);
+    SetBranchesVisible(false);
+    SetStashVisible(false);
     RefreshCommitHistory();
 }
 
@@ -960,8 +1000,9 @@ void AppController::OpenBranches()
         return;
     }
 
-    SetHistoryVisible(false);
     SetBranchesVisible(true);
+    SetHistoryVisible(false);
+    SetStashVisible(false);
     RefreshBranches();
 }
 
@@ -1084,6 +1125,174 @@ void AppController::CreateBranch(const QString &name)
     RefreshRepository();
     RefreshBranches();
     SetStatusMessage(QStringLiteral("Created and checked out %1.").arg(currentBranch));
+}
+
+void AppController::OpenStash()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    SetStashVisible(true);
+    SetHistoryVisible(false);
+    SetBranchesVisible(false);
+    RefreshStashes();
+}
+
+void AppController::CloseStash()
+{
+    SetStashVisible(false);
+}
+
+void AppController::RefreshStashes()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        stashModel.Clear();
+        SetSelectedStashName(QString());
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    const QList<GitStashInfo> stashes = gitRepository.Stashes();
+    stashModel.SetStashes(stashes);
+
+    if (stashes.isEmpty()) {
+        SetSelectedStashName(QString());
+        SetStatusMessage(QStringLiteral("No stash entries."));
+        return;
+    }
+
+    if (!stashModel.ContainsStash(selectedStashName)) {
+        SetSelectedStashName(stashes.first().name);
+    }
+
+    SetStatusMessage(QStringLiteral("%1 stash entry(s) loaded.").arg(stashes.size()));
+}
+
+void AppController::SelectStash(const QString &name)
+{
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty() || !stashModel.ContainsStash(trimmedName)) {
+        SetSelectedStashName(QString());
+        return;
+    }
+
+    SetSelectedStashName(trimmedName);
+}
+
+void AppController::StashPush(const QString &message)
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.StashPush(message);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to create stash.")
+            : output);
+        return;
+    }
+
+    if ((result.standardOutput + result.standardError).contains(QStringLiteral("No local changes to save"), Qt::CaseInsensitive)) {
+        RefreshRepository();
+        RefreshStashes();
+        SetStatusMessage(QStringLiteral("No local changes to stash."));
+        return;
+    }
+
+    RefreshRepository();
+    RefreshStashes();
+    SetStatusMessage(QStringLiteral("Stash created."));
+}
+
+void AppController::ApplySelectedStash()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    if (selectedStashName.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a stash first."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.StashApply(selectedStashName);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to apply stash.")
+            : output);
+        return;
+    }
+
+    RefreshRepository();
+    RefreshStashes();
+    SetStatusMessage(QStringLiteral("Stash applied."));
+}
+
+void AppController::PopSelectedStash()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    if (selectedStashName.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a stash first."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.StashPop(selectedStashName);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to pop stash.")
+            : output);
+        return;
+    }
+
+    RefreshRepository();
+    RefreshStashes();
+    SetStatusMessage(QStringLiteral("Stash popped."));
+}
+
+void AppController::DropSelectedStash()
+{
+    if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {
+        SetStatusMessage(QStringLiteral("Open an initialized Git repository first."));
+        return;
+    }
+
+    if (selectedStashName.isEmpty()) {
+        SetStatusMessage(QStringLiteral("Select a stash first."));
+        return;
+    }
+
+    const GitCommandResult result = gitRepository.StashDrop(selectedStashName);
+    if (!result.Success()) {
+        const QString output = (result.standardError.trimmed().isEmpty()
+            ? result.standardOutput
+            : result.standardError).trimmed();
+        SetStatusMessage(output.isEmpty()
+            ? QStringLiteral("Failed to drop stash.")
+            : output);
+        return;
+    }
+
+    RefreshRepository();
+    RefreshStashes();
+    SetStatusMessage(QStringLiteral("Stash dropped."));
 }
 
 void AppController::RefreshCommitHistory()
@@ -1400,6 +1609,16 @@ void AppController::SetBranchesVisible(bool value)
     emit BranchesVisibleChanged();
 }
 
+void AppController::SetStashVisible(bool value)
+{
+    if (stashVisible == value) {
+        return;
+    }
+
+    stashVisible = value;
+    emit StashVisibleChanged();
+}
+
 void AppController::SetSelectedBranchName(const QString &value)
 {
     if (selectedBranchName == value) {
@@ -1408,6 +1627,16 @@ void AppController::SetSelectedBranchName(const QString &value)
 
     selectedBranchName = value;
     emit SelectedBranchChanged();
+}
+
+void AppController::SetSelectedStashName(const QString &value)
+{
+    if (selectedStashName == value) {
+        return;
+    }
+
+    selectedStashName = value;
+    emit SelectedStashChanged();
 }
 
 void AppController::SetSelectedCommitHash(const QString &value)

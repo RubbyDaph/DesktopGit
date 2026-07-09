@@ -6,6 +6,7 @@
 #include "GitDiffFormatter.h"
 #include "GitRepository.h"
 #include "GitStatusParser.h"
+#include "StashModel.h"
 #include "StatusFileModel.h"
 
 #include <QDir>
@@ -52,6 +53,7 @@ private slots:
     void ClearStatusFileModel();
     void SelectStatusFilesInModel();
     void PopulateBranchModel();
+    void PopulateStashModel();
     void RunGitVersionCommand();
     void RunGitCommandWithEnvironmentOverride();
     void NormalizeRemoteUrls();
@@ -81,6 +83,8 @@ private slots:
     void ReadBranchSyncStatus();
     void ReadAndChangeLocalBranches();
     void ManageBranchesFromController();
+    void ManageStashes();
+    void ManageStashesFromController();
 };
 
 void TestDesktopGitCore::ParseStatusOutput()
@@ -217,6 +221,35 @@ void TestDesktopGitCore::PopulateBranchModel()
     QCOMPARE(model.data(index, BranchModel::NameRole).toString(), QStringLiteral("main"));
     QCOMPARE(model.data(index, BranchModel::CurrentRole).toBool(), true);
     QCOMPARE(model.data(index, BranchModel::UpstreamRole).toString(), QStringLiteral("origin/main"));
+
+    model.Clear();
+    QCOMPARE(resetSpy.count(), 2);
+    QCOMPARE(model.rowCount(), 0);
+}
+
+void TestDesktopGitCore::PopulateStashModel()
+{
+    StashModel model;
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    GitStashInfo stash;
+    stash.index = 0;
+    stash.name = QStringLiteral("stash@{0}");
+    stash.branch = QStringLiteral("main");
+    stash.message = QStringLiteral("Work in progress");
+
+    model.SetStashes({stash});
+
+    QCOMPARE(resetSpy.count(), 1);
+    QCOMPARE(model.rowCount(), 1);
+    QVERIFY(model.ContainsStash(QStringLiteral("stash@{0}")));
+    QVERIFY(!model.ContainsStash(QStringLiteral("stash@{1}")));
+
+    const QModelIndex index = model.index(0, 0);
+    QCOMPARE(model.data(index, StashModel::IndexRole).toInt(), 0);
+    QCOMPARE(model.data(index, StashModel::NameRole).toString(), QStringLiteral("stash@{0}"));
+    QCOMPARE(model.data(index, StashModel::BranchRole).toString(), QStringLiteral("main"));
+    QCOMPARE(model.data(index, StashModel::MessageRole).toString(), QStringLiteral("Work in progress"));
 
     model.Clear();
     QCOMPARE(resetSpy.count(), 2);
@@ -1634,6 +1667,130 @@ void TestDesktopGitCore::ManageBranchesFromController()
 
     controller.SelectBranch(QStringLiteral("missing"));
     QCOMPARE(controller.SelectedBranchName(), QString());
+}
+
+void TestDesktopGitCore::ManageStashes()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("base line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    GitRepository repository;
+    repository.SetPath(repositoryPath);
+
+    const QString branchName = repository.CurrentBranch();
+    QVERIFY(!branchName.isEmpty());
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("stashed line\n")));
+    const GitCommandResult pushResult = repository.StashPush(QStringLiteral("Work in progress"));
+    QVERIFY2(pushResult.Success(), qPrintable(pushResult.standardError));
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("base line\n"));
+
+    QList<GitStashInfo> stashes = repository.Stashes();
+    QCOMPARE(stashes.size(), 1);
+    QCOMPARE(stashes.first().index, 0);
+    QCOMPARE(stashes.first().name, QStringLiteral("stash@{0}"));
+    QCOMPARE(stashes.first().branch, branchName);
+    QCOMPARE(stashes.first().message, QStringLiteral("Work in progress"));
+
+    QVERIFY2(repository.StashApply(QStringLiteral("stash@{0}")).Success(), "git stash apply failed");
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("stashed line\n"));
+    QCOMPARE(repository.Stashes().size(), 1);
+
+    QVERIFY2(runner.Run({QStringLiteral("reset"), QStringLiteral("--hard"), QStringLiteral("HEAD")}, repositoryPath).Success(), "git reset failed");
+    QVERIFY2(repository.StashPop(QStringLiteral("stash@{0}")).Success(), "git stash pop failed");
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("stashed line\n"));
+    QCOMPARE(repository.Stashes().size(), 0);
+
+    QVERIFY2(runner.Run({QStringLiteral("reset"), QStringLiteral("--hard"), QStringLiteral("HEAD")}, repositoryPath).Success(), "git reset second failed");
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("drop line\n")));
+    QVERIFY2(repository.StashPush(QStringLiteral("Drop me")).Success(), "git stash push drop failed");
+    QCOMPARE(repository.Stashes().size(), 1);
+    QVERIFY2(repository.StashDrop(QStringLiteral("stash@{0}")).Success(), "git stash drop failed");
+    QCOMPARE(repository.Stashes().size(), 0);
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("base line\n"));
+}
+
+void TestDesktopGitCore::ManageStashesFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    const QString filePath = QDir(repositoryPath).filePath(QStringLiteral("file.txt"));
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("base line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    controller.OpenStash();
+    QCOMPARE(controller.StashVisible(), true);
+    QCOMPARE(controller.HistoryVisible(), false);
+    QCOMPARE(controller.BranchesVisible(), false);
+    QCOMPARE(controller.Stashes()->rowCount(), 0);
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("No stash entries."));
+
+    controller.ApplySelectedStash();
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Select a stash first."));
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("controller stash line\n")));
+    controller.RefreshRepository();
+    QCOMPARE(controller.StatusFiles()->rowCount(), 1);
+
+    controller.StashPush(QStringLiteral("Controller stash"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Stash created."));
+    QCOMPARE(controller.Stashes()->rowCount(), 1);
+    QCOMPARE(controller.SelectedStashName(), QStringLiteral("stash@{0}"));
+    QCOMPARE(controller.StatusFiles()->rowCount(), 0);
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("base line\n"));
+
+    controller.ApplySelectedStash();
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Stash applied."));
+    QCOMPARE(controller.Stashes()->rowCount(), 1);
+    QCOMPARE(controller.StatusFiles()->rowCount(), 1);
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("controller stash line\n"));
+
+    QVERIFY2(runner.Run({QStringLiteral("reset"), QStringLiteral("--hard"), QStringLiteral("HEAD")}, repositoryPath).Success(), "git reset failed");
+    controller.RefreshRepository();
+    controller.PopSelectedStash();
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Stash popped."));
+    QCOMPARE(controller.Stashes()->rowCount(), 0);
+    QCOMPARE(controller.SelectedStashName(), QString());
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("controller stash line\n"));
+
+    QVERIFY2(runner.Run({QStringLiteral("reset"), QStringLiteral("--hard"), QStringLiteral("HEAD")}, repositoryPath).Success(), "git reset second failed");
+    controller.RefreshRepository();
+    controller.StashPush(QStringLiteral("No changes"));
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("No local changes to stash."));
+    QCOMPARE(controller.Stashes()->rowCount(), 0);
+
+    QVERIFY(WriteTextFile(filePath, QStringLiteral("drop from controller\n")));
+    controller.RefreshRepository();
+    controller.StashPush(QStringLiteral("Drop from controller"));
+    QCOMPARE(controller.Stashes()->rowCount(), 1);
+    controller.DropSelectedStash();
+    QCOMPARE(controller.StatusMessage(), QStringLiteral("Stash dropped."));
+    QCOMPARE(controller.Stashes()->rowCount(), 0);
+    QCOMPARE(ReadTextFile(filePath), QStringLiteral("base line\n"));
 }
 
 QTEST_MAIN(TestDesktopGitCore)
