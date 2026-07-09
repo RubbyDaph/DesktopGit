@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -19,6 +20,7 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          set -euxo pipefail
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -41,14 +43,30 @@ jobs:
         with:
           version: "6.5.3"
 
+      - name: Show build environment
+        run: |
+          set -euxo pipefail
+          cmake --version
+          g++ --version
+          git --version
+          ldd --version | head -n 1
+          qmake6 -v || true
+
       - name: Download linuxdeployqt
-        run: ./scripts/install-linuxdeployqt.sh
+        run: |
+          set -euxo pipefail
+          ./scripts/install-linuxdeployqt.sh
 
       - name: Build AppImage
-        run: ./scripts/build-appimage.sh
+        run: |
+          set -euxo pipefail
+          ./scripts/build-appimage.sh
+          find . -maxdepth 2 -type f -name "*.AppImage" -print
 
       - name: Prepare release files
-        run: ./scripts/package-release.sh ./DesktopGit-x86_64.AppImage
+        run: |
+          set -euxo pipefail
+          ./scripts/package-release.sh
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -57,6 +75,7 @@ jobs:
           path: dist/DesktopGit-linux-x86_64/
 
       - name: Upload GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |

@@ -50,4 +50,16 @@ RunLinuxDeployQt \
     -appimage \
     -qmldir="${root_dir}/src/ui"
 
+generated_appimage="$(find "${root_dir}" -maxdepth 1 -type f -name "*.AppImage" | head -n 1)"
+if [[ -z "${generated_appimage}" ]]; then
+    echo "linuxdeployqt finished, but no AppImage was found in the project root."
+    exit 1
+fi
+
+expected_appimage="${root_dir}/DesktopGit-x86_64.AppImage"
+if [[ "${generated_appimage}" != "${expected_appimage}" ]]; then
+    mv "${generated_appimage}" "${expected_appimage}"
+fi
+
 echo "AppImage build finished."
+echo "${expected_appimage}"
