@@ -81,9 +81,21 @@ SplitView {
                 delegate: ItemDelegate {
                     id: statusFileDelegate
 
+                    required property string path
+                    required property string displayStatus
+                    required property bool staged
+                    required property bool selected
+                    required property int additions
+                    required property int deletions
+                    required property int changes
+
                     width: ListView.view.width
-                    highlighted: root.controller ? root.controller.selectedFilePath === model.path : false
-                    onClicked: root.controller.SelectStatusFile(model.path)
+                    highlighted: root.controller ? root.controller.selectedFilePath === path : false
+                    onClicked: {
+                        if (root.controller) {
+                            root.controller.SelectStatusFile(path)
+                        }
+                    }
 
                     background: Rectangle {
                         color: statusFileDelegate.highlighted
@@ -99,8 +111,12 @@ SplitView {
                         CheckBox {
                             id: statusFileSelectionCheckBox
 
-                            checked: model.selected
-                            onClicked: root.controller.ToggleFileSelection(model.path)
+                            checked: statusFileDelegate.selected
+                            onClicked: {
+                                if (root.controller) {
+                                    root.controller.ToggleFileSelection(statusFileDelegate.path)
+                                }
+                            }
 
                             indicator: Rectangle {
                                 implicitWidth: 16
@@ -128,15 +144,15 @@ SplitView {
                         }
 
                         AppIcon {
-                            name: model.displayStatus === "??"
+                            name: statusFileDelegate.displayStatus === "??"
                                 ? "plus"
-                                : model.displayStatus.indexOf("D") !== -1
+                                : statusFileDelegate.displayStatus.indexOf("D") !== -1
                                 ? "trash-2"
-                                : model.displayStatus.indexOf("A") !== -1
+                                : statusFileDelegate.displayStatus.indexOf("A") !== -1
                                 ? "plus"
-                                : model.displayStatus.indexOf("M") !== -1
+                                : statusFileDelegate.displayStatus.indexOf("M") !== -1
                                 ? "files"
-                                : model.staged
+                                : statusFileDelegate.staged
                                 ? "check"
                                 : "files"
                             size: 16
@@ -145,30 +161,30 @@ SplitView {
                         }
 
                         Label {
-                            text: model.path
+                            text: statusFileDelegate.path
                             color: root.textColor
                             elide: Text.ElideMiddle
                             Layout.fillWidth: true
                         }
 
                         Label {
-                            text: "+" + model.additions
+                            text: "+" + statusFileDelegate.additions
                             color: root.addedTextColor
-                            visible: model.additions > 0
+                            visible: statusFileDelegate.additions > 0
                             font.family: "monospace"
                         }
 
                         Label {
-                            text: "-" + model.deletions
+                            text: "-" + statusFileDelegate.deletions
                             color: root.removedTextColor
-                            visible: model.deletions > 0
+                            visible: statusFileDelegate.deletions > 0
                             font.family: "monospace"
                         }
 
                         Label {
-                            text: model.changes
+                            text: statusFileDelegate.changes
                             color: root.mutedTextColor
-                            visible: model.changes > 0
+                            visible: statusFileDelegate.changes > 0
                             font.family: "monospace"
                         }
                     }
