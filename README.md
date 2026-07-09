@@ -25,6 +25,24 @@ To build and use the project, you need:
 
 For normal GitHub work, your system Git must already be configured. For example, SSH keys or HTTPS credentials should work in the terminal before using push, pull, fetch, or clone inside the app.
 
+## Download
+
+Prebuilt Linux AppImage builds are available on the Releases page.
+
+Download these files into one folder:
+
+- `DesktopGit-x86_64.AppImage`
+- `install-linux.sh`
+- `uninstall-linux.sh`
+- `desktopgit.svg`
+
+Then run:
+
+```bash
+chmod +x install-linux.sh
+./install-linux.sh ./DesktopGit-x86_64.AppImage
+```
+
 ## Features
 
 - Open an existing local Git repository
