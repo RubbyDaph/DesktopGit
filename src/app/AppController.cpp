@@ -975,6 +975,13 @@ bool AppController::ConnectRepository(const QString &remoteUrl)
     return true;
 }
 
+void AppController::OpenWorkingTree()
+{
+    SetHistoryVisible(false);
+    SetBranchesVisible(false);
+    SetStashVisible(false);
+}
+
 void AppController::OpenHistory()
 {
     if (repositoryPath.isEmpty() || !repositoryInitialized || !gitRepository.IsValid()) {

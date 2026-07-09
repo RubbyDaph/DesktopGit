@@ -814,93 +814,6 @@ ApplicationWindow {
             }
 
             AppButton {
-                id: connectRepositoryButton
-
-                text: qsTr("Connect repository")
-                visible: appController.repositoryPath.length > 0
-                    && (!appController.repositoryInitialized || !appController.remoteConnected)
-                enabled: appController.gitAvailable
-                    && !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: connectRepositoryDialog.prepareOpen()
-            }
-
-            AppButton {
-                id: openRepositoryButton
-
-                text: qsTr("Open")
-                primary: true
-                enabled: appController.gitAvailable
-                    && !appController.cloneInProgress
-                onClicked: repositoryPickerDialog.prepareOpen()
-            }
-
-            AppButton {
-                id: cloneRepositoryButton
-
-                text: qsTr("Clone")
-                enabled: appController.gitAvailable
-                    && !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: cloneRepositoryDialog.prepareOpen()
-            }
-
-            AppButton {
-                id: refreshRepositoryButton
-
-                text: qsTr("Refresh")
-                visible: appController.repositoryPath.length > 0
-                enabled: !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: appController.RefreshRepository()
-            }
-
-            AppButton {
-                id: openHistoryButton
-
-                text: qsTr("History")
-                enabled: appController.repositoryPath.length > 0
-                    && appController.repositoryInitialized
-                    && !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: appController.OpenHistory()
-            }
-
-            AppButton {
-                id: openBranchesButton
-
-                text: qsTr("Branches")
-                enabled: appController.repositoryPath.length > 0
-                    && appController.repositoryInitialized
-                    && !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: appController.OpenBranches()
-            }
-
-            AppButton {
-                id: openStashButton
-
-                text: qsTr("Stash")
-                enabled: appController.repositoryPath.length > 0
-                    && appController.repositoryInitialized
-                    && !appController.cloneInProgress
-                    && !appController.fetchInProgress
-                    && !appController.pullInProgress
-                    && !appController.pushInProgress
-                onClicked: appController.OpenStash()
-            }
-
-            AppButton {
                 id: fetchRepositoryButton
 
                 text: qsTr("Fetch")
@@ -927,74 +840,223 @@ ApplicationWindow {
                     && !appController.pushInProgress
                 onClicked: appController.PullRepository()
             }
+
+            AppButton {
+                id: repositoryMenuButton
+
+                text: qsTr("Repository")
+                primary: appController.repositoryPath.length === 0
+                enabled: appController.gitAvailable
+                    && !appController.cloneInProgress
+                onClicked: repositoryMenu.open()
+
+                Menu {
+                    id: repositoryMenu
+
+                    y: repositoryMenuButton.height + 4
+                    width: 210
+
+                    background: Rectangle {
+                        color: window.panelColor
+                        border.color: window.borderColor
+                        border.width: 1
+                        radius: 6
+                    }
+
+                    MenuItem {
+                        text: qsTr("Open repository")
+                        enabled: appController.gitAvailable
+                            && !appController.cloneInProgress
+                        onTriggered: repositoryPickerDialog.prepareOpen()
+                    }
+
+                    MenuItem {
+                        text: qsTr("Clone repository")
+                        enabled: appController.gitAvailable
+                            && !appController.cloneInProgress
+                            && !appController.fetchInProgress
+                            && !appController.pullInProgress
+                            && !appController.pushInProgress
+                        onTriggered: cloneRepositoryDialog.prepareOpen()
+                    }
+
+                    MenuSeparator {}
+
+                    MenuItem {
+                        text: qsTr("Refresh")
+                        enabled: appController.repositoryPath.length > 0
+                            && !appController.cloneInProgress
+                            && !appController.fetchInProgress
+                            && !appController.pullInProgress
+                            && !appController.pushInProgress
+                        onTriggered: appController.RefreshRepository()
+                    }
+
+                    MenuItem {
+                        text: qsTr("Connect remote")
+                        visible: appController.repositoryPath.length > 0
+                            && (!appController.repositoryInitialized || !appController.remoteConnected)
+                        enabled: appController.gitAvailable
+                            && !appController.cloneInProgress
+                            && !appController.fetchInProgress
+                            && !appController.pullInProgress
+                            && !appController.pushInProgress
+                        onTriggered: connectRepositoryDialog.prepareOpen()
+                    }
+                }
+            }
         }
     }
 
-    StackLayout {
-        id: mainContentStack
-
+    RowLayout {
         anchors.fill: parent
-        currentIndex: appController.stashVisible ? 3
-            : appController.branchesVisible ? 2
-            : appController.historyVisible ? 1
-            : 0
+        spacing: 0
 
-        WorkingTreeView {
-            id: workingTreePage
+        Rectangle {
+            id: sectionSidebar
 
-            controller: appController
-            panelColor: window.panelColor
-            panelRaisedColor: window.panelRaisedColor
-            borderColor: window.borderColor
-            textColor: window.textColor
-            mutedTextColor: window.mutedTextColor
-            addedLineColor: window.addedLineColor
-            removedLineColor: window.removedLineColor
-            addedTextColor: window.addedTextColor
-            removedTextColor: window.removedTextColor
-            accentColor: window.accentColor
+            Layout.fillHeight: true
+            Layout.preferredWidth: 142
+            color: window.panelColor
+            border.color: window.borderColor
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                AppButton {
+                    id: changesNavigationButton
+
+                    Layout.fillWidth: true
+                    text: qsTr("Changes")
+                    primary: !appController.historyVisible
+                        && !appController.branchesVisible
+                        && !appController.stashVisible
+                    enabled: appController.repositoryPath.length > 0
+                        && appController.repositoryInitialized
+                    onClicked: appController.OpenWorkingTree()
+                }
+
+                AppButton {
+                    id: historyNavigationButton
+
+                    Layout.fillWidth: true
+                    text: qsTr("History")
+                    primary: appController.historyVisible
+                    enabled: appController.repositoryPath.length > 0
+                        && appController.repositoryInitialized
+                        && !appController.cloneInProgress
+                        && !appController.fetchInProgress
+                        && !appController.pullInProgress
+                        && !appController.pushInProgress
+                    onClicked: appController.OpenHistory()
+                }
+
+                AppButton {
+                    id: branchesNavigationButton
+
+                    Layout.fillWidth: true
+                    text: qsTr("Branches")
+                    primary: appController.branchesVisible
+                    enabled: appController.repositoryPath.length > 0
+                        && appController.repositoryInitialized
+                        && !appController.cloneInProgress
+                        && !appController.fetchInProgress
+                        && !appController.pullInProgress
+                        && !appController.pushInProgress
+                    onClicked: appController.OpenBranches()
+                }
+
+                AppButton {
+                    id: stashNavigationButton
+
+                    Layout.fillWidth: true
+                    text: qsTr("Stash")
+                    primary: appController.stashVisible
+                    enabled: appController.repositoryPath.length > 0
+                        && appController.repositoryInitialized
+                        && !appController.cloneInProgress
+                        && !appController.fetchInProgress
+                        && !appController.pullInProgress
+                        && !appController.pushInProgress
+                    onClicked: appController.OpenStash()
+                }
+
+                Item {
+                    Layout.fillHeight: true
+                }
+            }
         }
 
-        CommitHistoryView {
-            id: historyPage
+        StackLayout {
+            id: mainContentStack
 
-            controller: appController
-            panelColor: window.panelColor
-            panelRaisedColor: window.panelRaisedColor
-            borderColor: window.borderColor
-            textColor: window.textColor
-            mutedTextColor: window.mutedTextColor
-            addedLineColor: window.addedLineColor
-            removedLineColor: window.removedLineColor
-            addedTextColor: window.addedTextColor
-            removedTextColor: window.removedTextColor
-            accentColor: window.accentColor
-        }
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: appController.stashVisible ? 3
+                : appController.branchesVisible ? 2
+                : appController.historyVisible ? 1
+                : 0
 
-        BranchesView {
-            id: branchesPage
+            WorkingTreeView {
+                id: workingTreePage
 
-            controller: appController
-            panelColor: window.panelColor
-            panelRaisedColor: window.panelRaisedColor
-            borderColor: window.borderColor
-            textColor: window.textColor
-            mutedTextColor: window.mutedTextColor
-            addedTextColor: window.addedTextColor
-            accentColor: window.accentColor
-        }
+                controller: appController
+                panelColor: window.panelColor
+                panelRaisedColor: window.panelRaisedColor
+                borderColor: window.borderColor
+                textColor: window.textColor
+                mutedTextColor: window.mutedTextColor
+                addedLineColor: window.addedLineColor
+                removedLineColor: window.removedLineColor
+                addedTextColor: window.addedTextColor
+                removedTextColor: window.removedTextColor
+                accentColor: window.accentColor
+            }
 
-        StashView {
-            id: stashPage
+            CommitHistoryView {
+                id: historyPage
 
-            controller: appController
-            panelColor: window.panelColor
-            panelRaisedColor: window.panelRaisedColor
-            borderColor: window.borderColor
-            textColor: window.textColor
-            mutedTextColor: window.mutedTextColor
-            removedTextColor: window.removedTextColor
-            accentColor: window.accentColor
+                controller: appController
+                panelColor: window.panelColor
+                panelRaisedColor: window.panelRaisedColor
+                borderColor: window.borderColor
+                textColor: window.textColor
+                mutedTextColor: window.mutedTextColor
+                addedLineColor: window.addedLineColor
+                removedLineColor: window.removedLineColor
+                addedTextColor: window.addedTextColor
+                removedTextColor: window.removedTextColor
+                accentColor: window.accentColor
+            }
+
+            BranchesView {
+                id: branchesPage
+
+                controller: appController
+                panelColor: window.panelColor
+                panelRaisedColor: window.panelRaisedColor
+                borderColor: window.borderColor
+                textColor: window.textColor
+                mutedTextColor: window.mutedTextColor
+                addedTextColor: window.addedTextColor
+                accentColor: window.accentColor
+            }
+
+            StashView {
+                id: stashPage
+
+                controller: appController
+                panelColor: window.panelColor
+                panelRaisedColor: window.panelRaisedColor
+                borderColor: window.borderColor
+                textColor: window.textColor
+                mutedTextColor: window.mutedTextColor
+                removedTextColor: window.removedTextColor
+                accentColor: window.accentColor
+            }
         }
     }
 

@@ -62,6 +62,7 @@ private slots:
     void InitializeAndConnectRepository();
     void OpenPlainFolderAndConnectFromController();
     void OpenRepositoryWithExistingOriginFromController();
+    void OpenWorkingTreeFromController();
     void ReadCommitHistoryAndCommitDiff();
     void PopulateCommitHistoryModel();
     void PopulateCommitFileModel();
@@ -462,6 +463,47 @@ void TestDesktopGitCore::OpenRepositoryWithExistingOriginFromController()
 
     QVERIFY(controller.ConnectRepository(QStringLiteral("https://github.com/user/ignored")));
     QCOMPARE(controller.RemoteUrl(), remotePath);
+}
+
+void TestDesktopGitCore::OpenWorkingTreeFromController()
+{
+    QTemporaryDir repositoryDirectory;
+    QVERIFY(repositoryDirectory.isValid());
+
+    const QString repositoryPath = repositoryDirectory.path();
+    GitCommandRunner runner;
+
+    QVERIFY2(runner.Run({QStringLiteral("init")}, repositoryPath).Success(), "git init failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("test@example.local")}, repositoryPath).Success(), "git config user.email failed");
+    QVERIFY2(runner.Run({QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("DesktopGit Test")}, repositoryPath).Success(), "git config user.name failed");
+    QVERIFY(WriteTextFile(QDir(repositoryPath).filePath(QStringLiteral("file.txt")), QStringLiteral("base line\n")));
+    QVERIFY2(runner.Run({QStringLiteral("add"), QStringLiteral("file.txt")}, repositoryPath).Success(), "git add failed");
+    QVERIFY2(runner.Run({QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("Initial commit")}, repositoryPath).Success(), "git commit failed");
+
+    AppController controller;
+    controller.OpenRepositoryPath(repositoryPath);
+
+    controller.OpenHistory();
+    QCOMPARE(controller.HistoryVisible(), true);
+    controller.OpenWorkingTree();
+    QCOMPARE(controller.HistoryVisible(), false);
+    QCOMPARE(controller.BranchesVisible(), false);
+    QCOMPARE(controller.StashVisible(), false);
+
+    controller.OpenBranches();
+    QCOMPARE(controller.BranchesVisible(), true);
+    controller.OpenWorkingTree();
+    QCOMPARE(controller.HistoryVisible(), false);
+    QCOMPARE(controller.BranchesVisible(), false);
+    QCOMPARE(controller.StashVisible(), false);
+
+    controller.OpenStash();
+    QCOMPARE(controller.StashVisible(), true);
+
+    controller.OpenWorkingTree();
+    QCOMPARE(controller.HistoryVisible(), false);
+    QCOMPARE(controller.BranchesVisible(), false);
+    QCOMPARE(controller.StashVisible(), false);
 }
 
 void TestDesktopGitCore::ReadCommitHistoryAndCommitDiff()

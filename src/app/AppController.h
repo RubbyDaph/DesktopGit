@@ -129,6 +129,7 @@ public:
         const QString &parentDirectory,
         const QString &folderName);
     Q_INVOKABLE bool ConnectRepository(const QString &remoteUrl);
+    Q_INVOKABLE void OpenWorkingTree();
     Q_INVOKABLE void OpenHistory();
     Q_INVOKABLE void CloseHistory();
     Q_INVOKABLE void OpenBranches();
