@@ -790,26 +790,46 @@ ApplicationWindow {
                 border.width: 1
                 radius: 6
                 Layout.preferredHeight: 28
-                Layout.preferredWidth: branchSyncStatusLabel.implicitWidth + 20
+                Layout.preferredWidth: branchSyncStatusContent.implicitWidth + 20
 
-                Label {
-                    id: branchSyncStatusLabel
-
+                RowLayout {
+                    id: branchSyncStatusContent
                     anchors.centerIn: parent
-                    text: appController.repositoryInitialized && appController.remoteConnected
-                        ? (appController.syncStatusText.length > 0
-                            ? appController.syncStatusText
-                            : appController.repositoryConnectionStatusText)
-                        : appController.repositoryConnectionStatusText
-                    color: !appController.repositoryInitialized || !appController.remoteConnected
-                        ? window.removedTextColor
-                        : appController.hasUpstream
-                        ? (appController.aheadCount === 0 && appController.behindCount === 0
-                            ? window.addedTextColor
-                            : "#e4d58a")
-                        : window.removedTextColor
-                    font.pixelSize: 12
-                    font.weight: Font.DemiBold
+                    spacing: 6
+
+                    AppIcon {
+                        id: branchSyncStatusIcon
+
+                        name: !appController.repositoryInitialized || !appController.remoteConnected
+                            ? "triangle-alert"
+                            : appController.hasUpstream
+                            ? (appController.aheadCount > 0
+                                ? "arrow-up"
+                                : appController.behindCount > 0
+                                ? "arrow-down"
+                                : "circle-check")
+                            : "triangle-alert"
+                        size: 13
+                    }
+
+                    Label {
+                        id: branchSyncStatusLabel
+
+                        text: appController.repositoryInitialized && appController.remoteConnected
+                            ? (appController.syncStatusText.length > 0
+                                ? appController.syncStatusText
+                                : appController.repositoryConnectionStatusText)
+                            : appController.repositoryConnectionStatusText
+                        color: !appController.repositoryInitialized || !appController.remoteConnected
+                            ? window.removedTextColor
+                            : appController.hasUpstream
+                            ? (appController.aheadCount === 0 && appController.behindCount === 0
+                                ? window.addedTextColor
+                                : "#e4d58a")
+                            : window.removedTextColor
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                    }
                 }
             }
 
@@ -817,6 +837,7 @@ ApplicationWindow {
                 id: fetchRepositoryButton
 
                 text: qsTr("Fetch")
+                iconName: "cloud-download"
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
                     && appController.remoteConnected
@@ -831,6 +852,7 @@ ApplicationWindow {
                 id: pullRepositoryButton
 
                 text: qsTr("Pull")
+                iconName: "arrow-down-to-line"
                 enabled: appController.repositoryPath.length > 0
                     && appController.repositoryInitialized
                     && appController.remoteConnected
@@ -845,6 +867,7 @@ ApplicationWindow {
                 id: repositoryMenuButton
 
                 text: qsTr("Repository")
+                iconName: "more-horizontal"
                 primary: appController.repositoryPath.length === 0
                 enabled: appController.gitAvailable
                     && !appController.cloneInProgress
@@ -865,6 +888,7 @@ ApplicationWindow {
 
                     MenuItem {
                         text: qsTr("Open repository")
+                        icon.source: "qrc:/assets/icons/lucide/folder-open.svg"
                         enabled: appController.gitAvailable
                             && !appController.cloneInProgress
                         onTriggered: repositoryPickerDialog.prepareOpen()
@@ -872,6 +896,7 @@ ApplicationWindow {
 
                     MenuItem {
                         text: qsTr("Clone repository")
+                        icon.source: "qrc:/assets/icons/lucide/download.svg"
                         enabled: appController.gitAvailable
                             && !appController.cloneInProgress
                             && !appController.fetchInProgress
@@ -884,6 +909,7 @@ ApplicationWindow {
 
                     MenuItem {
                         text: qsTr("Refresh")
+                        icon.source: "qrc:/assets/icons/lucide/refresh-cw.svg"
                         enabled: appController.repositoryPath.length > 0
                             && !appController.cloneInProgress
                             && !appController.fetchInProgress
@@ -894,6 +920,7 @@ ApplicationWindow {
 
                     MenuItem {
                         text: qsTr("Connect remote")
+                        icon.source: "qrc:/assets/icons/lucide/cloud-upload.svg"
                         visible: appController.repositoryPath.length > 0
                             && (!appController.repositoryInitialized || !appController.remoteConnected)
                         enabled: appController.gitAvailable
@@ -931,6 +958,7 @@ ApplicationWindow {
 
                     Layout.fillWidth: true
                     text: qsTr("Changes")
+                    iconName: "files"
                     primary: !appController.historyVisible
                         && !appController.branchesVisible
                         && !appController.stashVisible
@@ -944,6 +972,7 @@ ApplicationWindow {
 
                     Layout.fillWidth: true
                     text: qsTr("History")
+                    iconName: "history"
                     primary: appController.historyVisible
                     enabled: appController.repositoryPath.length > 0
                         && appController.repositoryInitialized
@@ -959,6 +988,7 @@ ApplicationWindow {
 
                     Layout.fillWidth: true
                     text: qsTr("Branches")
+                    iconName: "git-branch"
                     primary: appController.branchesVisible
                     enabled: appController.repositoryPath.length > 0
                         && appController.repositoryInitialized
@@ -974,6 +1004,7 @@ ApplicationWindow {
 
                     Layout.fillWidth: true
                     text: qsTr("Stash")
+                    iconName: "archive"
                     primary: appController.stashVisible
                     enabled: appController.repositoryPath.length > 0
                         && appController.repositoryInitialized

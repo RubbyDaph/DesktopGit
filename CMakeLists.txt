@@ -31,6 +31,12 @@ file(GLOB_RECURSE DESKTOP_GIT_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
 )
 
+file(GLOB_RECURSE DESKTOP_GIT_ICON_FILES
+    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+    CONFIGURE_DEPENDS
+    assets/icons/lucide/*.svg
+)
+
 set(DESKTOP_GIT_CORE_SOURCES ${DESKTOP_GIT_SOURCES})
 list(REMOVE_ITEM DESKTOP_GIT_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
@@ -67,6 +73,11 @@ set_source_files_properties(src/ui/components/AppButton.qml
         QT_RESOURCE_ALIAS AppButton.qml
 )
 
+set_source_files_properties(src/ui/components/AppIcon.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS AppIcon.qml
+)
+
 set_source_files_properties(src/ui/views/CommitHistoryView.qml
     PROPERTIES
         QT_RESOURCE_ALIAS CommitHistoryView.qml
@@ -93,10 +104,17 @@ qt_add_qml_module(desktop_git
     QML_FILES
         src/ui/Main.qml
         src/ui/components/AppButton.qml
+        src/ui/components/AppIcon.qml
         src/ui/views/BranchesView.qml
         src/ui/views/CommitHistoryView.qml
         src/ui/views/StashView.qml
         src/ui/views/WorkingTreeView.qml
+)
+
+qt_add_resources(desktop_git "desktop_git_icons"
+    PREFIX "/"
+    FILES
+        ${DESKTOP_GIT_ICON_FILES}
 )
 
 target_include_directories(desktop_git
