@@ -127,11 +127,21 @@ SplitView {
                             }
                         }
 
-                        Label {
-                            text: model.displayStatus
-                            color: root.textColor
-                            font.family: "monospace"
+                        AppIcon {
+                            name: model.displayStatus === "??"
+                                ? "plus"
+                                : model.displayStatus.indexOf("D") !== -1
+                                ? "trash-2"
+                                : model.displayStatus.indexOf("A") !== -1
+                                ? "plus"
+                                : model.displayStatus.indexOf("M") !== -1
+                                ? "files"
+                                : model.staged
+                                ? "check"
+                                : "files"
+                            size: 16
                             Layout.preferredWidth: 28
+                            Layout.alignment: Qt.AlignVCenter
                         }
 
                         Label {
