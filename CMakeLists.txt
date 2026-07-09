@@ -22,10 +22,6 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
 
 qt_standard_project_setup(REQUIRES 6.5)
 
-if(COMMAND qt_policy)
-    qt_policy(SET QTP0004 NEW)
-endif()
-
 file(GLOB_RECURSE DESKTOP_GIT_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h

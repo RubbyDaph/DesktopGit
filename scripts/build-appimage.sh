@@ -20,7 +20,7 @@ if [[ -z "${linuxdeployqt_path}" ]]; then
     exit 1
 fi
 
-glibc_version="$(ldd --version | head -n 1 | sed -E 's/.* ([0-9]+\.[0-9]+).*/\1/')"
+glibc_version="$(ldd --version 2>&1 | sed -n '1p' | sed -E 's/.* ([0-9]+\.[0-9]+).*/\1/')"
 if [[ "${glibc_version}" =~ ^[0-9]+\.[0-9]+$ ]]; then
     newest_version="$(printf "%s\n%s\n" "2.35" "${glibc_version}" | sort -V | tail -n 1)"
     if [[ "${newest_version}" == "${glibc_version}" && "${glibc_version}" != "2.35" ]]; then

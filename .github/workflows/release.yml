@@ -49,7 +49,7 @@ jobs:
           cmake --version
           g++ --version
           git --version
-          ldd --version | head -n 1
+          ldd --version 2>&1 | sed -n '1p'
           qmake6 -v || true
 
       - name: Download linuxdeployqt
