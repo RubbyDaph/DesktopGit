@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  linux-appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            curl \
+            file \
+            libfuse2 \
+            libgl1-mesa-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxcb-xinerama0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.5.3"
+          modules: "qtdeclarative qtquickcontrols2"
+
+      - name: Download linuxdeployqt
+        run: ./scripts/install-linuxdeployqt.sh
+
+      - name: Build AppImage
+        run: ./scripts/build-appimage.sh
+
+      - name: Prepare release files
+        run: ./scripts/package-release.sh ./DesktopGit-x86_64.AppImage
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopGit-linux-x86_64
+          path: dist/DesktopGit-linux-x86_64/
+
+      - name: Upload GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/DesktopGit-linux-x86_64/DesktopGit-x86_64.AppImage
+            dist/DesktopGit-linux-x86_64/install-linux.sh
+            dist/DesktopGit-linux-x86_64/uninstall-linux.sh
+            dist/DesktopGit-linux-x86_64/desktopgit.svg

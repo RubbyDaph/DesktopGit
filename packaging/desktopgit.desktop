@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DesktopGit
+Comment=Desktop Git client
+Exec=desktop_git
+Icon=desktopgit
+Categories=Development;RevisionControl;
+Terminal=false
+StartupNotify=true

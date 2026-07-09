@@ -67,6 +67,58 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## Install AppImage Locally
+
+After downloading the AppImage from GitHub Releases, you can add it to the application launcher:
+
+```bash
+./scripts/install-linux.sh ./DesktopGit-x86_64.AppImage
+```
+
+This installs the AppImage into `~/.local/bin`, adds the app icon, and creates a desktop launcher entry.
+
+To remove it:
+
+```bash
+./scripts/uninstall-linux.sh
+```
+
+## Build AppImage
+
+The AppImage build uses `linuxdeployqt`.
+
+For a portable AppImage, build it on Ubuntu 22.04 or another system with `glibc` 2.35 or older. Newer systems may be rejected by `linuxdeployqt`, because the generated AppImage would not work on many older distributions.
+
+You can download `linuxdeployqt` into the local `tools` folder:
+
+```bash
+./scripts/install-linuxdeployqt.sh
+```
+
+Then build the AppImage:
+
+```bash
+./scripts/build-appimage.sh
+```
+
+The generated `.AppImage` file can be uploaded to GitHub Releases.
+
+## Create A GitHub Release
+
+The repository has a GitHub Actions workflow that builds an AppImage when you push a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions will build the AppImage on Ubuntu 22.04 and upload these release files:
+
+- `DesktopGit-x86_64.AppImage`
+- `install-linux.sh`
+- `uninstall-linux.sh`
+- `desktopgit.svg`
+
 ## Screenshots
 
 ### Changes And Diff

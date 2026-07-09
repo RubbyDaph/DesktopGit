@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.desktopgit</id>
+  <name>DesktopGit</name>
+  <summary>Desktop Git client</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      DesktopGit is a small desktop Git client built with C++ and Qt Quick.
+      It helps users view changes, stage files, commit, push, pull, fetch,
+      browse branches, use stash, and inspect commit history.
+    </p>
+  </description>
+  <launchable type="desktop-id">desktopgit.desktop</launchable>
+  <categories>
+    <category>Development</category>
+    <category>RevisionControl</category>
+  </categories>
+</component>

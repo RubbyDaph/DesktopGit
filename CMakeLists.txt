@@ -152,3 +152,19 @@ set_tests_properties(desktop_git_tests
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+install(TARGETS desktop_git
+    RUNTIME DESTINATION bin
+)
+
+install(FILES packaging/desktopgit.desktop
+    DESTINATION share/applications
+)
+
+install(FILES packaging/desktopgit.svg
+    DESTINATION share/icons/hicolor/scalable/apps
+)
+
+install(FILES packaging/io.github.desktopgit.metainfo.xml
+    DESTINATION share/metainfo
+)
